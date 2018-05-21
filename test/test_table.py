@@ -16,37 +16,39 @@ class TestTable(unittest.TestCase):
                         n_col=self.n_col, pad_value=10)
         print(t.table)
         rst = t(self.input)
+        print(rst)
         rst.sum().backward()
-        print(t.raw_table.grad)
+        print(t.table.grad)
         t2 = table.Table(self.name+'_', torch.tensor([2, 3, 3, 23, 3]))
+        print(t2.table)
         print(t2(self.input))
 
     def test_last_value_padding(self):
         t = table.Table(self.name, self.table_tensor,
                         n_col=self.n_col, pad_mode=1)
-        print(t.table[:, -4:])
+        print(t.table[:, :])
         rst = t(self.input)
         rst.sum().backward()
-        print(t.raw_table.grad)
+        print(t.table.grad)
 
     def test_max_padding(self):
         t = table.Table(self.name, self.table_tensor,
                         n_col=self.n_col, pad_mode=4)
-        print(t.raw_table.max(1)[0])
-        print(t.table[:, -4:])
+        print(t.table.max(1)[0])
+        print(t.table[:, :])
         rst = t(self.input)
         rst.sum().backward()
-        print(t.raw_table.grad)
+        print(t.table.grad)
 
     def test_min_padding(self):
         t = table.Table(self.name, self.table_tensor,
                         n_col=self.n_col,
                         pad_mode=table.PadMode.Min)
-        print(t.raw_table.min(1)[0])
-        print(t.table[:, -4:])
+        print(t.table.min(1)[0])
+        print(t.table[:, :])
         rst = t(self.input)
         rst.sum().backward()
-        print(t.raw_table.grad)
+        print(t.table.grad)
 
     def test_lookup_table(self):
         t1 = table.LookupTable(

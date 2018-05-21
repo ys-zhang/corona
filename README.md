@@ -1,5 +1,5 @@
 # corona
-actuarial lab based on pytorch （in development)
+An actuarial framework based on Pytorch (in development)
 
 - 产品定义：core.contract
 - 假设表：table

@@ -40,24 +40,26 @@ class ProbabilityLayer(Module):
         else:
             self.kx = Parameter(torch.tensor(kx))
 
-        self.qx_mth, self.kx_mth = None, None
-        self.update_monthly()
-
-    def update_monthly(self):
-        self.qx_mth = repeat(torch.pow(self.qx + 1., 1. / 12) - 1., 12)
+    def monthly_probs(self):
+        qx_mth = repeat(torch.pow(self.qx + 1., 1. / 12) - 1., 12)
         if self.kx is not None:
-            self.kx_mth = repeat(self.kx, 12)
+            kx_mth = repeat(self.kx, 12)
+        else:
+            kx_mth = None
+        return qx_mth, kx_mth
 
     def set_parameter(self, px, kx=None):
         self.px.data.set_(px)
         if kx and self.kx is not None:
             self.kx.data.set_(kx)
-        self.update_monthly()
         return self
 
     def forward(self, mp_idx, annual=False)->Tensor:
-        px = self.qx if annual else self.qx_mth
-        kx = self.kx if annual else self.kx_mth
+        if annual:
+            px = self.qx
+            kx = self.kx
+        else:
+            px, kx = self.monthly_probs()
         try:
             px = px * (1. - kx)
         except TypeError:
@@ -83,7 +85,7 @@ class Inevitable(Module):
 
 class SelectionLayer(Module):
 
-    def __init__(self, fac=None, *, context):
+    def __init__(self, fac=None, *, context=None):
         super().__init__()
         self.context = context
         if fac is None:
@@ -97,19 +99,15 @@ class SelectionLayer(Module):
         else:
             self.fac = Parameter(torch.tensor(fac))
 
-        self.fac_mth = None
-        self.update_monthly()
-
-    def update_monthly(self):
-        self.fac_mth = repeat(self.fac, 12)
+    def monthly_factor(self):
+        return repeat(self.fac, 12)
 
     def set_parameter(self, selection_factor):
         self.fac.data.set_(selection_factor)
-        self.update_monthly()
         return self
 
     def forward(self, mp_idx, annual)->Tensor:
-        fac = self.fac if annual else self.fac_mth
+        fac = self.fac if annual else self.monthly_factor()
         sex = mp_idx[:, ProbabilityLayer.SEX_IDX].long()
         return fac[sex, :]
 
@@ -136,5 +134,5 @@ class SelectedProbabilityLayer(Module):
 
 class AbstractInForceLayer(Module):
 
-    def forward(self, qx_lst, context)->list:
+    def forward(self, contract, context)->list:
         raise NotImplementedError()

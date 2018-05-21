@@ -44,6 +44,41 @@ class PadMode(enum.IntEnum):
     """Pad left with the mode of the row"""
 
 
+def pad(raw_table, n_col, pad_value, pad_mode):
+    if raw_table.nelement() == 1:
+        table = torch.full((1, n_col), raw_table)
+    elif raw_table.dim() == 1:
+        table = torch.unsqueeze(raw_table, 0)
+    elif n_col and n_col > raw_table.shape[1]:
+        pad = (0, n_col - raw_table.shape[1])
+        if pad_mode == PadMode.Constant:
+            table = functional.pad(raw_table, pad, 'constant', pad_value)
+        else:
+            if pad_mode == PadMode.LastValue:
+                pad_value = raw_table[:, -1]
+            elif pad_mode == PadMode.MinLastValueAnd:
+                pad_value = torch.nn.functional.threshold(raw_table[:, -1], pad_value, pad_value)
+            elif pad_mode == PadMode.MaxLastValueAnd:
+                pad_value = -torch.nn.functional.threshold(-raw_table[:, -1], -pad_value, -pad_value)
+            elif pad_mode == PadMode.Max:
+                pad_value = raw_table.max(1)[0]
+            elif pad_mode == PadMode.Min:
+                pad_value = raw_table.min(1)[0]
+            elif pad_mode == PadMode.Avg:
+                pad_value = raw_table.meam(1)
+            elif pad_mode == PadMode.Mode:
+                pad_value = raw_table.mode(1)[0]
+            else:
+                raise NotImplementedError(f'pad_mode: {pad_mode}')
+            table = torch.cat((raw_table, torch.unsqueeze(pad_value, 1)
+                                    .expand((-1, pad[1]))), 1)
+    elif n_col:
+        table = raw_table[:, :n_col]
+    else:
+        table = raw_table
+    return table
+
+
 class Table(Module):
     r""" Defines a Table of parameters of an insurance contract or an assumption
     with padding mechanism supported throw `pad_mode` and `pad_value`.
@@ -98,55 +133,28 @@ class Table(Module):
         assert name.strip() not in self._TABLES
         self._TABLES[name] = self
         self.name = name.strip()
-        self.raw_table = Parameter(table)
+        self.table = Parameter(table)
         self.n_col = n_col
-        if self.raw_table.nelement() == 1:
-            self.table = torch.full((1, n_col), self.raw_table)
+        if self.table.nelement() == 1:
             self._need_lookup = False
-        elif self.raw_table.dim() == 1:
-            self.table = torch.unsqueeze(self.raw_table, 0)
-            self.n_col = self.raw_table.nelement()
+        elif self.table.dim() == 1:
+            self.n_col = self.table.nelement()
             self._need_lookup = False
-        elif n_col and n_col > self.raw_table.shape[1]:
+        elif n_col and n_col > self.table.shape[1]:
             self._need_lookup = True
-            pad = (0, n_col - self.raw_table.shape[1])
-            if pad_mode == PadMode.Constant:
-                self.table = functional.pad(self.raw_table, pad,
-                                            'constant', pad_value)
-            else:
-                if pad_mode == PadMode.LastValue:
-                    pad_value = self.raw_table[:, -1]
-                elif pad_mode == PadMode.MinLastValueAnd:
-                    pad_value = torch.nn.functional\
-                        .threshold(self.raw_table[:, -1], pad_value, pad_value)
-                elif pad_mode == PadMode.MaxLastValueAnd:
-                    pad_value = -torch.nn.functional\
-                        .threshold(-self.raw_table[:, -1], -pad_value,
-                                   -pad_value)
-                elif pad_mode == PadMode.Max:
-                    pad_value = self.raw_table.max(1)[0]
-                elif pad_mode == PadMode.Min:
-                    pad_value = self.raw_table.min(1)[0]
-                elif pad_mode == PadMode.Avg:
-                    pad_value = self.raw_table.meam(1)
-                elif pad_mode == PadMode.Mode:
-                    pad_value = self.raw_table.mode(1)[0]
-                else:
-                    raise NotImplementedError(f'pad_mode: {pad_mode}')
-                self.table = torch.cat((self.raw_table,
-                                        torch.unsqueeze(pad_value, 1)
-                                        .expand((-1, pad[1]))), 1)
-        elif n_col:
-            self.table = self.raw_table[:, :n_col]
         else:
-            self.table = self.raw_table
-            self.n_col = self.raw_table.shape[1]
+            self.n_col = self.table.shape[1]
+            pass
+
+        self.pad_value = pad_value
+        self.pad_mode = pad_mode
 
     def forward(self, index: Tensor):
+        table = pad(self.table, self.n_col, self.pad_value, self.pad_mode)
         if self._need_lookup:
-            return torch.index_select(self.table, 0, index.long())
+            return torch.index_select(table, 0, index.long())
         else:
-            return self.table.expand(index.nelement(), self.n_col)
+            return table.expand(index.nelement(), self.n_col)
 
 
 class LookupTable(Table):
@@ -239,7 +247,7 @@ class LookupTable(Table):
         elif self.raw_index_table.dim() == 1:
             self.sparse_index_table = None
             i = self.raw_index_table.max().item()
-            _index_table = np.full(i+1, self.raw_table.shape[0])
+            _index_table = np.full(i + 1, self.table.shape[0])
             _index_table[self.raw_index_table.numpy()] =\
                 np.arange(self.raw_index_table.nelement())
             self.index_table = torch.from_numpy(_index_table).long()
@@ -252,7 +260,7 @@ class LookupTable(Table):
             index = self.index_table[lookup]
         else:
             index = self.index_table.index(torch.unbind(lookup, 1))
-        return torch.index_select(self.table, 0, index)
+        return super().forward(index)
 
 
 class PmtLookupTable(LookupTable):
