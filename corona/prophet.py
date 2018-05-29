@@ -24,7 +24,7 @@ TableValue = Number | pp.Word(pp.alphanums + '_') | pp.QuotedString('"')
 TableStartAt = Integer.setResultsName('tblStartAt')
 ColName = pp.Word(pp.alphanums + '_')
 
-EndOfTable = r'\x1a##END##'
+EndOfTable = pp.Suppress(pp.Literal(r'\x1a##END##'))
 FirstLine = Integer.setResultsName('colNum') \
             + (Comment.setResultsName('tableCaption') | pp.lineEnd)
 HeadLine = (pp.Suppress('!') + pp.Optional(TableStartAt) + ','
@@ -38,7 +38,8 @@ Product = ColName.setResultsName('productCode') \
               + pp.Optional(pp.Suppress('#')
                             + ColName.setResultsName('subProductCode'))
 
-VariableTypesLine = pp.Suppress('VARIABLE_TYPES,')\
+VariableTypesLine = pp.Suppress('VARIABLE_TYPES,') +\
+                    pp.Suppress(pp.ZeroOrMore(pp.White())+pp.Optional('T1,'))\
                     + pp.delimitedList(TableValue).setResultsName('varTypes')
 RowCountCheckerLine = pp.Suppress('NUMLINES,')\
                       + Integer.setResultsName('rowNum') + pp.lineEnd
@@ -112,9 +113,7 @@ class ProphetTable:
         col_names = list(p_rst['colNames'])
         n_col = p_rst['colNum']
         index_num = p_rst['tblStartAt'] - 1
-        dtypes = cls.translate_var_type(list(p_rst['varTypes']))
         df = pd.DataFrame(data=table, columns=col_names)
-        df.astype(dtype=dict(zip(col_names, dtypes)), copy=False)
         df.set_index(col_names[:index_num], inplace=True)
         assert df.shape[1] == n_col, "column missing"
         return df
@@ -140,11 +139,12 @@ class ProphetTable:
         table = cls.parse_result2table(p_rst['rows'])
         column_names = list(p_rst['colNames'])
         df = pd.DataFrame(data=table, columns=column_names)
+        dtypes = cls.translate_var_type(list(p_rst['varTypes']))
+        df.astype(dtype=dict(zip(column_names, dtypes)), copy=False)
         df.set_index(cls.MP_BATCH_COL, inplace=True)
         origin_row_num, real_row_num = p_rst['rowNum'], len(df)
         assert real_row_num == origin_row_num,\
-            f"The table should have {origin_row_num} points " \
-            f"but {real_row_num} points are read"
+            f"The table should have {origin_row_num} points but {real_row_num} points are read"
         return df
 
     @classmethod
@@ -156,14 +156,3 @@ class ProphetTable:
         :return: dataframe
         """
         return cls.read_generic_table(file)
-
-
-# ================= MINI LANG =============
-TIME = pp.Literal('T') | pp.Literal('t')
-ID = pp.Combine(pp.Word(pp.alphas + '_')
-                + pp.ZeroOrMore(pp.Word(pp.alphanums + '_')))
-NUMBER = pp.Regex(r'-?[0-9]*[.]?[0-9]+').\
-    setParseAction(lambda tks: float(tks[0]) if '.' in tks[0] else int(tks[0]))
-STR = pp.quotedString("'") | pp.quotedString('"')
-LITERAL = NUMBER | STR
-PY_ID = pp.Combine('@' + ID + pp.OneOrMore("." + ID))
