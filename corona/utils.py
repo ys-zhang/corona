@@ -1,7 +1,16 @@
+import weakref
+import re
+import enum
+import warnings
 import torch
+import collections
 from torch import Tensor, nn
 import torch.nn.functional as F
 import numpy as np
+from cytoolz import isiterable, keyfilter, valmap
+
+
+CResult = collections.namedtuple('CResult', ["pcf", "cf", "p"])
 
 
 class Repeat(torch.autograd.Function):
@@ -13,6 +22,7 @@ class Repeat(torch.autograd.Function):
 
     >>> Repeat.apply(torch.range(0, 1), 2)
     """
+
     @staticmethod
     def forward(ctx, ts_input: Tensor, times: int=12, axis=-1):
         ctx.split_times = ts_input.shape[axis]
@@ -35,6 +45,7 @@ Args:
     - times: default 12
     - axis: default -1
 """
+
 
 def repeat_array(array: Tensor, repeats: int=12)->Tensor:
     """Repeat a 1-D array for several times
@@ -100,17 +111,17 @@ def time_slice1d(ts: Tensor, aft, pad_value):
 
     """
     if aft > 0:
-        return torch.cat((ts[aft:], torch.full((aft,), pad_value)))
+        return torch.cat((ts[aft:], torch.full((aft,), pad_value, dtype=torch.double)))
     else:
         return ts
 
 
-def time_slice(tbl: Tensor, aft: Tensor, pad_value=0)->Tensor:
+def time_slice(tbl: Tensor, aft: Tensor, pad_value=0.)->Tensor:
     r"""
     .. math::
 
-        $$ out_{i, j} = ts_{i + aft, j} * \chi_{j + aft < n} +
-               pad_value * \chi_{j + aft \ge n} $$
+        out_{i, j} = ts_{i + aft, j} * \chi_{j + aft < n} +
+            pad_value * \chi_{j + aft \ge n}
 
     """
     aft = aft.long()
@@ -234,3 +245,225 @@ class CF2M(nn.Module):
             return repeat(table)
         else:
             raise NotImplementedError(self.only_at_month)
+
+
+def account_value(a0: Tensor, rate: Tensor, after_credit: Tensor=None, before_credit: Tensor=None):
+    r""" calculate account value
+
+    .. math::
+
+        a_{i, t+1} = (a_{i, t} + \text{before_credit}_{i, t}) * rate_{i, t}
+         + \text{after_credit}_{i, t}
+
+    :param a0: 1-D tensor represents initial av of each model point
+    :param rate: 1-D tensor, credit interest of each model point at each time
+    :param after_credit: increment  or reduction of account value after credit
+    :param before_credit: increment  or reduction of account value
+        before credit
+    :return: the account value of each model point at each time,
+        the first column is a0
+
+    .. note::
+        rate is directly multiplied to the account value of last month
+    """
+    rate = 1 + rate  # type: Tensor
+    if before_credit is None:
+        b = after_credit
+    elif after_credit is None:
+        b = before_credit * rate
+    else:
+        b = before_credit * rate + after_credit
+
+    rate = torch.cat((rate.new_ones((rate.shape[0], 1)), rate), 1)[:, :-1]
+    if b is not None:
+        a0b = torch.cat((a0.reshape(-1, 1), b), 1)[:, :-1].unsqueeze(1)
+        mask = rate.new_ones((rate.shape[1], rate.shape[1]),
+                             requires_grad=False).triu().unsqueeze(0)
+        cum_rate = rate.cumprod(1).unsqueeze(1)
+        expanded_cum_rate = cum_rate.expand(*rate.shape, rate.shape[1])
+        factor = expanded_cum_rate / cum_rate.transpose(1, 2) * mask
+        return (a0b @ factor).squeeze()
+    else:
+        return a0.reshape(-1, 1) * rate.cumprod(1)
+
+
+def make_parameter(param, *, pad_n_col=None, pad_value=None, pad_mode=None) -> nn.Parameter:
+    if isinstance(param, nn.Parameter):
+        return param
+    elif isinstance(param, Tensor):
+        pass
+    elif isinstance(param, np.ndarray):
+        param = torch.from_numpy(param)
+    elif isinstance(param, int) or isinstance(param, float):
+        param = torch.tensor([param], dtype=torch.double)
+    else:
+        param = torch.tensor(list(param), dtype=torch.double)
+    if pad_mode is not None:
+        if param.shape[1] < pad_n_col:
+            param = pad(param, pad_n_col, pad_value, pad_mode)
+        elif param.shape[1] > pad_n_col:
+            warnings.warn(f"param len longer than pad_n_col {pad_n_col}")
+            param = param[:, :pad_n_col]
+    return nn.Parameter(param)
+
+
+def make_model_dict(modules, default_key=None):
+    assert modules is None or isiterable(modules)
+    if isinstance(modules, dict):
+        return ModuleDict(modules, default_key=default_key)
+    elif modules is not None:
+        modules = dict([(p.context, p) for p in modules])
+        return ModuleDict(modules, default_key)
+    else:
+        return ModuleDict(default_key=default_key)
+
+
+class PadMode(enum.IntEnum):
+    """ Different modes of padding mechanism.
+
+    - :attr:`Constant`: 0, Pad left with constant value.
+    - :attr:`LastValue`, :attr:`LastColumn`: 1, Pad left with the last Column
+    - :attr:`MaxLastValueAnd`: 2 Pad left with max(lastColumn, value)
+    - :attr:`MinLastValueAnd`: 3 Pad left with min(lastColumn, value)
+    - :attr:`Max`: 4 Pad left with the maximum of the row
+    - :attr:`Min`: 5 Pad left with the minimum of the row
+    - :attr:`Average`: 6 Pad left with the average of the row
+    - :attr:`Mode`: 6 Pad left with the mode of the row
+    """
+    Constant = 0
+    """Pad left with constant value"""
+    LastValue = 1
+    """Pad left with the last Column"""
+    LastColumn = 1
+    """Same as `LastValue`"""
+    MaxLastValueAnd = 2
+    """Pad left with max(lastColumn, value)"""
+    MinLastValueAnd = 3
+    """Pad left with min(lastColumn, value)"""
+    Max = 4
+    """Pad left with the maximum of the row"""
+    Min = 5
+    """Pad left with the minimum of the row"""
+    Avg = 6
+    """Pad left with the average of the row"""
+    Mode = 7
+    """Pad left with the mode of the row"""
+
+
+def pad(raw_table, n_col, pad_value, pad_mode):
+    if raw_table.nelement() == 1:
+        table = torch.full((1, n_col), raw_table)
+    elif raw_table.dim() == 1:
+        table = torch.unsqueeze(raw_table, 0)
+    elif n_col and n_col > raw_table.shape[1]:
+        pad = (0, n_col - raw_table.shape[1])
+        if pad_mode == PadMode.Constant:
+            table = F.pad(raw_table, pad, 'constant', pad_value)
+        else:
+            if pad_mode == PadMode.LastValue:
+                pad_value = raw_table[:, -1]
+            elif pad_mode == PadMode.MinLastValueAnd:
+                pad_value = torch.nn.functional.threshold(raw_table[:, -1], pad_value, pad_value)
+            elif pad_mode == PadMode.MaxLastValueAnd:
+                pad_value = -torch.nn.functional.threshold(-raw_table[:, -1], -pad_value, -pad_value)
+            elif pad_mode == PadMode.Max:
+                pad_value = raw_table.max(1)[0]
+            elif pad_mode == PadMode.Min:
+                pad_value = raw_table.min(1)[0]
+            elif pad_mode == PadMode.Avg:
+                pad_value = raw_table.meam(1)
+            elif pad_mode == PadMode.Mode:
+                pad_value = raw_table.mode(1)[0]
+            else:
+                raise NotImplementedError(f'pad_mode: {pad_mode}')
+            table = torch.cat((raw_table, torch.unsqueeze(pad_value, 1).expand((-1, pad[1]))), 1)
+    elif n_col:
+        table = raw_table[:, :n_col]
+    else:
+        table = raw_table
+    return table
+
+
+class Lambda(nn.Module):
+
+    def __init__(self, lambd, repre=None):
+        super().__init__()
+        self.lambd = lambd
+        self.repr = repre
+
+    def forward(self, *inputs):
+        return self.lambd(*inputs)
+
+    def __repr__(self):
+        if self.repr:
+            return str(self.repr)
+        else:
+            return super().__repr__()
+
+
+class ClauseReferable:
+
+    def __init__(self):
+        self._clause = None
+        """ weak proxy of clause the ratio table belongs to  """
+
+    @property
+    def clause(self):
+        return self._clause()
+
+    # don't use property.setter
+    # to avoid circular reference when nn.Model.modules() is called
+    def set_clause_ref(self, clause):
+        self._clause = weakref.ref(clause)
+
+
+class ContractReferable:
+
+    def __init__(self):
+        self._contract = None
+        """ weak ref of contract the ratio table belongs to  """
+
+    @property
+    def contract(self):
+        return self._contract()
+
+    # don't use property.setter
+    # to avoid circular reference when nn.Model.modules() is called
+    def set_contract_ref(self, contract):
+        self._contract = weakref.ref(contract)
+
+
+class ModuleDict(nn.Module):
+
+    def __init__(self, module_dict: dict=None, default_key=None):
+        super().__init__()
+        self.default_key = default_key
+        if module_dict is not None:
+            for k, m in module_dict.items():
+                self.add_module(str(k), m)
+
+    def __getitem__(self, key):
+        try:
+            return self._modules[str(key)]
+        except KeyError:
+            return self._modules[str(self.default_key)]
+
+    def __setitem__(self, key, module):
+        assert isinstance(module, nn.Module)
+        return setattr(self, str(key), module)
+
+    def __iter__(self):
+        return iter(self._modules.values())
+
+    def __len__(self):
+        return len(self._modules)
+
+    def __dir__(self):
+        return list(self._modules.keys())
+
+    def re_select(self, patten):
+        patten = re.compile(patten)
+        return list(keyfilter(patten.fullmatch, self._modules).values())
+
+    def forward(self, *args, **kwargs):
+        return valmap(lambda md: md(*args, **kwargs), self._modules)

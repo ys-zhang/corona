@@ -11,7 +11,8 @@ class DiscountLayer(Module):
     _RATE_INIT_UPPER_LIMIT = .05
     _RATE_INIT_LOWER_LIMIT = .01
 
-    def __init__(self, forward_rate=None, time_len=MAX_YR_LEN, *, context):
+    def __init__(self, forward_rate=None, time_len=MAX_YR_LEN,
+                 *, context=None):
         super().__init__()
         if forward_rate is None:
             self.time_len = time_len

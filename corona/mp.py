@@ -9,6 +9,11 @@ import numpy as np
 import pandas as pd
 
 
+__all__ = ['ModelPointSet', 'ToNewBusiness', 'Scale', 'to_tensor',
+           'ConstantCreditInterest', 'Compose', 'Lambda',
+           'BatchSamplerFromIndex']
+
+
 class ModelPointSet(Dataset):
 
     _INDEX_ORDER = ['sex', 'age', 'pmt', 'bft', 'mth']
@@ -21,12 +26,13 @@ class ModelPointSet(Dataset):
         'mth': 'DURATIONIF_M',
     }
 
-    _VALUE_ORDER = ['prem', 'sa', 'av']
+    _VALUE_ORDER = ['prem', 'sa', 'av', 'crd']
 
     _VALUE_MAP = {
         'prem': 'ANNUAL_PREM',
         'sa': 'SUM_ASSURED',
-        'av': None
+        'av': 'INIT_UNFDU',  # account value
+        'crd': 'CURR_CRD_INT',  # credit interest
     }
 
     @classmethod
@@ -57,10 +63,8 @@ class ModelPointSet(Dataset):
         idx_order, val_order = self.idx_order(), self.val_order()
         idx_map, val_map = self.idx_map(), self.val_map()
 
-        mp_idx = np.array([d.get(x, np.zeros(size))
-                           for x in get(idx_order, idx_map)]).T
-        mp_val = np.array([d.get(x, np.full(size, np.nan))
-                           for x in get(val_order, val_map)]).T
+        mp_idx = np.array([d.get(x, np.zeros(size)) for x in get(idx_order, idx_map)]).T
+        mp_val = np.array([d.get(x, np.full(size, np.nan)) for x in get(val_order, val_map)]).T
 
         self.mp_idx = mp_idx
         self.mp_val = mp_val
@@ -82,12 +86,11 @@ class ModelPointSet(Dataset):
         return BatchSamplerFromIndex(self)
 
     def data_loader(self, **kwargs):
-        return DataLoader(self, batch_sampler=self.sp_code_batch_sampler,
-                          **kwargs)
+        return DataLoader(self, batch_sampler=self.sp_code_batch_sampler, **kwargs)
 
 
 class ToNewBusiness:
-
+    """ Transform to mp represent new business """
     def __init__(self, mth_idx=4, prem_idx=0, av_idx=2):
         self.mth_idx = mth_idx
         self.prem_idx = prem_idx
@@ -107,11 +110,28 @@ def to_tensor(mp_index, mp_val):
 
 class Scale:
 
-    def __init__(self, ratio):
+    def __init__(self, ratio, exclude_idx_lst=(3,)):
         self.ratio = ratio
+        self.exclude_idx_lst = exclude_idx_lst
 
     def __call__(self, mp_index, mp_val):
-        return mp_index, mp_val * self.ratio
+        mp_val2 = mp_val.copy()
+        mp_val2 *= self.ratio
+        if self.exclude_idx_lst is not None:
+            mp_val2[self.exclude_idx_lst] = mp_val[self.exclude_idx_lst]
+        return mp_index, mp_val2
+
+
+class ConstantCreditInterest:
+
+    def __init__(self, val, crd_idx=3):
+        self.val = val
+        self.crd_idx = crd_idx
+
+    def __call__(self, mp_index, mp_val):
+        mp_val2 = mp_val.copy()
+        mp_val2[self.crd_idx] = self.val
+        return mp_index, mp_val
 
 
 # ------------------- Transform from torchvision ----------------
@@ -154,7 +174,7 @@ class Lambda(object):
         return self.__class__.__name__ + '()'
 
 
-# ------------------ Data Loader ------------------------------
+# ------------------ Sampler ------------------------------
 
 class BatchSamplerFromIndex:
 
@@ -164,8 +184,7 @@ class BatchSamplerFromIndex:
         elif isinstance(mp_or_batch_index, ModelPointSet):
             self.batch_index = mp_or_batch_index.batch_indicator
         else:
-            raise ValueError('mp_or_batch_index should be a pandas index or'
-                             'ModelPointSet')
+            raise ValueError('mp_or_batch_index should be a pandas index or ModelPointSet')
         self.labels = sorted(set(self.batch_index))
         self.locations = dict(((label, self._get_loc(label))
                                for label in self.labels))
@@ -183,5 +202,3 @@ class BatchSamplerFromIndex:
     def __iter__(self):
         for label in self.labels:
             yield self.locations[label]
-
-

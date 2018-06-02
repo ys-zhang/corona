@@ -4,79 +4,12 @@ Config Padding mechanism are defined in this Module.
 Use `Table` for lookup input are exactly the row number of the table, else use
 `LookupTable`.
 """
-import enum
 import weakref
 import torch
-from torch.nn import Module, Parameter, functional
+from torch.nn import Module, Parameter
 from torch import Tensor
 import numpy as np
-
-
-class PadMode(enum.IntEnum):
-    """ Different modes of padding mechanism.
-
-    - :attr:`Constant`: 0, Pad left with constant value.
-    - :attr:`LastValue`, :attr:`LastColumn`: 1, Pad left with the last Column
-    - :attr:`MaxLastValueAnd`: 2 Pad left with max(lastColumn, value)
-    - :attr:`MinLastValueAnd`: 3 Pad left with min(lastColumn, value)
-    - :attr:`Max`: 4 Pad left with the maximum of the row
-    - :attr:`Min`: 5 Pad left with the minimum of the row
-    - :attr:`Average`: 6 Pad left with the average of the row
-    - :attr:`Mode`: 6 Pad left with the mode of the row
-    """
-    Constant = 0
-    """Pad left with constant value"""
-    LastValue = 1
-    """Pad left with the last Column"""
-    LastColumn = 1
-    """Same as `LastValue`"""
-    MaxLastValueAnd = 2
-    """Pad left with max(lastColumn, value)"""
-    MinLastValueAnd = 3
-    """Pad left with min(lastColumn, value)"""
-    Max = 4
-    """Pad left with the maximum of the row"""
-    Min = 5
-    """Pad left with the minimum of the row"""
-    Avg = 6
-    """Pad left with the average of the row"""
-    Mode = 7
-    """Pad left with the mode of the row"""
-
-
-def pad(raw_table, n_col, pad_value, pad_mode):
-    if raw_table.nelement() == 1:
-        table = torch.full((1, n_col), raw_table)
-    elif raw_table.dim() == 1:
-        table = torch.unsqueeze(raw_table, 0)
-    elif n_col and n_col > raw_table.shape[1]:
-        pad = (0, n_col - raw_table.shape[1])
-        if pad_mode == PadMode.Constant:
-            table = functional.pad(raw_table, pad, 'constant', pad_value)
-        else:
-            if pad_mode == PadMode.LastValue:
-                pad_value = raw_table[:, -1]
-            elif pad_mode == PadMode.MinLastValueAnd:
-                pad_value = torch.nn.functional.threshold(raw_table[:, -1], pad_value, pad_value)
-            elif pad_mode == PadMode.MaxLastValueAnd:
-                pad_value = -torch.nn.functional.threshold(-raw_table[:, -1], -pad_value, -pad_value)
-            elif pad_mode == PadMode.Max:
-                pad_value = raw_table.max(1)[0]
-            elif pad_mode == PadMode.Min:
-                pad_value = raw_table.min(1)[0]
-            elif pad_mode == PadMode.Avg:
-                pad_value = raw_table.meam(1)
-            elif pad_mode == PadMode.Mode:
-                pad_value = raw_table.mode(1)[0]
-            else:
-                raise NotImplementedError(f'pad_mode: {pad_mode}')
-            table = torch.cat((raw_table, torch.unsqueeze(pad_value, 1)
-                                    .expand((-1, pad[1]))), 1)
-    elif n_col:
-        table = raw_table[:, :n_col]
-    else:
-        table = raw_table
-    return table
+from .utils import ClauseReferable, ContractReferable, pad
 
 
 class Table(Module):
@@ -144,7 +77,6 @@ class Table(Module):
             self._need_lookup = True
         else:
             self.n_col = self.table.shape[1]
-            pass
 
         self.pad_value = pad_value
         self.pad_mode = pad_mode
@@ -238,18 +170,15 @@ class LookupTable(Table):
         if self.raw_index_table.dim() == 2:
             self.sparse_index_table = \
                 torch.sparse.LongTensor(self.raw_index_table.t(),
-                                        torch.arange(0, self.raw_index_table
-                                                     .shape[0]).long(),
-                                        torch.Size((self.raw_index_table
-                                                    .max(0)[0] + 1).tolist()))
+                                        torch.arange(0, self.raw_index_table.shape[0]).long(),
+                                        torch.Size((self.raw_index_table.max(0)[0] + 1).tolist()))
             self.index_table = self.sparse_index_table.to_dense()
             self._is_one_dim_index = False
         elif self.raw_index_table.dim() == 1:
             self.sparse_index_table = None
             i = self.raw_index_table.max().item()
             _index_table = np.full(i + 1, self.table.shape[0])
-            _index_table[self.raw_index_table.numpy()] =\
-                np.arange(self.raw_index_table.nelement())
+            _index_table[self.raw_index_table.numpy()] = np.arange(self.raw_index_table.nelement())
             self.index_table = torch.from_numpy(_index_table).long()
             self._is_one_dim_index = True
         else:
@@ -263,7 +192,13 @@ class LookupTable(Table):
         return super().forward(index)
 
 
-class PmtLookupTable(LookupTable):
+class RatioTableBase(Module, ClauseReferable, ContractReferable):
+
+    def forward(self, *inputs):
+        raise NotImplementedError
+
+
+class PmtLookupTable(LookupTable, RatioTableBase):
     """LookupTable with `payment term` as the lookup key
     the result after `benefit term` is set to 0.
 
@@ -273,12 +208,12 @@ class PmtLookupTable(LookupTable):
     """
     PMT_IDX = 2
 
-    def forward(self, mp_idx):
+    def forward(self, mp_idx, mp_val=None):
         pmt = mp_idx[:, self.PMT_IDX]
         return super().forward(pmt)
 
 
-class AgeIndexedTable(Table):
+class AgeIndexedTable(Table, RatioTableBase):
     """Table with `issue age` as index
     the result after `benefit term` is set to 0.
 
@@ -288,12 +223,12 @@ class AgeIndexedTable(Table):
     """
     AGE_IDX = 1
 
-    def forward(self, mp_idx):
+    def forward(self, mp_idx, mp_val=None):
         age = mp_idx[:, self.AGE_IDX]
         return super().forward(age)
 
 
-class PmtAgeLookupTable(LookupTable):
+class PmtAgeLookupTable(LookupTable, RatioTableBase):
     """LookupTable with `payment term` and `issue age` as the lookup key
     the result after `benefit term` is set to 0.
 
@@ -304,7 +239,7 @@ class PmtAgeLookupTable(LookupTable):
     PMT_IDX = PmtLookupTable.PMT_IDX
     AGE_IDX = AgeIndexedTable.AGE_IDX
 
-    def forward(self, mp_idx):
+    def forward(self, mp_idx, mp_val=None):
         pmt = mp_idx[:, self.PMT_IDX]
         age = mp_idx[:, self.AGE_IDX]
         return super().forward(torch.stack([pmt, age], 0).t())
