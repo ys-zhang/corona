@@ -28,6 +28,8 @@ class ModelPointSet(Dataset):
 
     _VALUE_ORDER = ['prem', 'sa', 'av', 'crd']
 
+    _N_POLS_IF = 'INIT_POLS_IF'
+
     _VALUE_MAP = {
         'prem': 'ANNUAL_PREM',
         'sa': 'SUM_ASSURED',
@@ -66,9 +68,20 @@ class ModelPointSet(Dataset):
         mp_idx = np.array([d.get(x, np.zeros(size)) for x in get(idx_order, idx_map)]).T
         mp_val = np.array([d.get(x, np.full(size, np.nan)) for x in get(val_order, val_map)]).T
 
+        self.n_pols_if = dataframe[self._N_POLS_IF].values
+
         self.mp_idx = mp_idx
-        self.mp_val = mp_val
+        self.mp_val = mp_val * self.n_pols_if.reshape(-1, 1)
         self.batch_indicator = dataframe.index
+
+    def __getattr__(self, item):
+        if item in self.idx_map():
+            rst = self.mp_idx[:, self.idx_order().index(item)]
+        elif item in self.val_map():
+            rst = self.mp_val[:, self.val_order().index(item)]
+        else:
+            raise AttributeError(f"{item}")
+        return rst
 
     def __len__(self):
         return len(self.dataframe)

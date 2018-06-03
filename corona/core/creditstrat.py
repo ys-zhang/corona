@@ -3,7 +3,7 @@ credit of account value
 
 """
 from corona.utils import make_parameter
-from corona.const import MAX_YR_LEN
+from corona.conf import MAX_YR_LEN
 from corona.table import RatioTableBase
 
 

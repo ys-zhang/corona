@@ -3,7 +3,7 @@ import torch
 from torch import Tensor
 from torch.nn import Module, Parameter
 from corona.utils import sens
-from corona.const import MAX_YR_LEN
+from corona.conf import MAX_YR_LEN
 
 
 class DiscountLayer(Module):

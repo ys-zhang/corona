@@ -1,8 +1,8 @@
 import unittest
-import corona as co
 from corona.core.contract import *
 from corona.core.creditstrat import *
 from corona.core.prob import *
+from corona.core.prob.cn import *
 from corona.prophet import *
 from corona.mp import *
 import pandas as pd

@@ -110,7 +110,7 @@ import torch
 from cytoolz import isiterable, pluck, accumulate, valfilter, valmap
 from torch.nn import Module
 
-from corona.const import MAX_YR_LEN
+from corona.conf import MAX_YR_LEN
 from corona.utils import CF2M, repeat, account_value, make_model_dict, Lambda, \
     make_parameter, ClauseReferable, ContractReferable, ModuleDict, CResult
 
