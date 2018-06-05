@@ -9,7 +9,8 @@ import enum
 import os
 import warnings
 
-__all__ = ['ProphetTable']
+__all__ = ['ProphetTable', 'read_generic_table', 'read_parameter_table',
+           'read_probability_table', 'read_modelpoint_table']
 
 
 # ===================== Prophet Fac Table Reading ============================
@@ -56,6 +57,7 @@ class ProphetTableType(enum.IntEnum):
     Sales = 2
     Parameter = 3
     Probability = 4
+    TableOfTable = 5
 
 
 class ProphetTable:
@@ -97,17 +99,48 @@ class ProphetTable:
 
     _ALL_TABLES_ = {}
 
-    def __init__(self, tablename, tabletype, dataframe):
+    def __init__(self, tablename, tabletype, dataframe, *, cache=True):
         self.tablename = tablename
         self.tabletype = tabletype
         self.dataframe = dataframe
-        if self.tabletype != ProphetTableType.ModelPoint:
+        if cache and self.tabletype != ProphetTableType.ModelPoint:
             if self.tablename in self._ALL_TABLES_:
-                warnings.warn(f"tablename :{self.tablename} all ready exists")
+                warnings.warn(f"tablename :{self.tablename} all ready exists",
+                              RuntimeWarning)
             self._ALL_TABLES_[self.tablename] = self
 
     def __getattr__(self, name):
-        return getattr(self.dataframe, name)
+        if name == 'loc':
+            raise AttributeError
+        rst = getattr(self.dataframe, name)
+        if isinstance(rst, pd.DataFrame) or isinstance(rst, pd.Series):
+            return ProphetTable(f"{self.tablename}.{name}", self.tabletype,
+                                rst, cache=False)
+        else:
+            return rst
+
+    def __getitem__(self, item):
+        try:
+            rst = self.dataframe.loc[item]
+        except KeyError:
+            try:
+                rst = self.dataframe.iloc[item]
+            except TypeError:
+                warnings.warn(f"column selected from ProphetTable: {self.tablename}",
+                              RuntimeWarning)
+                rst = self.dataframe[item]
+
+        if isinstance(rst, pd.DataFrame) or isinstance(rst, pd.Series):
+            return ProphetTable(f"{self.tablename}[{item}]", self.tabletype,
+                                rst, cache=False)
+        elif self.tabletype == ProphetTableType.TableOfTable and isinstance(rst, str):
+            return self._ALL_TABLES_.get(rst, rst)
+        else:
+            return rst
+
+    @classmethod
+    def clear_cache(cls):
+        cls._ALL_TABLES_ = {}
 
     @classmethod
     def translate_var_type(cls, prophet_var_types: list):
@@ -120,7 +153,9 @@ class ProphetTable:
     def __repr__(self):
         if self.tablename is None:
             return repr(self.dataframe)
-        return self.tablename + '\n' + repr(self.dataframe)
+        return f"TABLE_NAME: {self.tablename}" + '\n' \
+               f"TABLE_TYPE: {self.tabletype}" + '\n' \
+               + repr(self.dataframe)
 
     @classmethod
     def get_table(cls, tablename):
@@ -190,7 +225,17 @@ class ProphetTable:
         return cls.read_generic_table(file, ProphetTableType.Parameter, tablename)
 
     @classmethod
-    def read_probability(cls, m_file, f_file=None, tablename=None):
+    def read_table_of_table(cls, file, tablename=None):
+        """
+        A simple reader of *Prophet TableOfTable*
+
+        :param Union[str, File] file: path to the file
+        :param Optional[str] tablename: if not provided name is guessed from file
+        """
+        return cls.read_generic_table(file, ProphetTableType.TableOfTable, tablename)
+
+    @classmethod
+    def read_probability_table(cls, m_file, f_file=None, tablename=None):
         if tablename is None:
             m_tablename = cls._guess_tablename(m_file)
             if f_file is not None:
@@ -244,6 +289,7 @@ class ProphetTable:
                 warnings.warn(f"{klass} is not subclass of {ModelPointSet}")
         return klass(self.dataframe, *args_of_klass, **kwargs_of_klass)
 
+    # noinspection PyArgumentList
     def as_probability(self, kx=None, klass=None, *args_of_klass, **kwargs_of_klass):
         """Convert probability table to Probability, the result is an instance of klass.
 
@@ -274,6 +320,7 @@ class ProphetTable:
 
         return klass(qx, kx, *args_of_klass, name=self.tablename, **kwargs_of_klass)
 
+    # noinspection PyArgumentList
     def as_selection_factor(self, klass=None, *args_of_klass, **kwargs_of_klass):
         """Convert probability table to Selection Factor, the result is an instance of klass.
 
@@ -293,3 +340,14 @@ class ProphetTable:
                 warnings.warn(f"{klass} is not subclass of {SelectionFactor}")
 
         return klass(fac, *args_of_klass, name=self.tablename, **kwargs_of_klass)
+
+
+read_generic_table = ProphetTable.read_generic_table
+read_parameter_table = ProphetTable.read_parameter_table
+read_probability_table = ProphetTable.read_probability_table
+read_modelpoint_table = ProphetTable.read_modelpoint_table
+read_table_of_table = ProphetTable.read_table_of_table
+
+
+def read_tables_from(folder_path):
+    pass
