@@ -230,10 +230,10 @@ class Clause(Module, ContractReferable):
         return CResult(pcf, cf, (mp_val.new_zeros((1,)) if self.virtual else p))
 
     def extra_repr(self):
-        return f"$NAME$: {self.name}\n" \
-               f"$VIRTUAL$: {self.virtual}\n" \
-               f"$DEFAULT_CONTEXT$: {self.default_context}\n" \
-               f"$CONTEXTS_EXCLUDE$: {self._context_exclude_repr}"
+        return "$NAME$: {}\n".format(self.name) +\
+               "$VIRTUAL$: {}\n".format(self.virtual) + \
+               "$DEFAULT_CONTEXT$: {}\n".format(self.default_context) + \
+               "$CONTEXTS_EXCLUDE$: {}".format(self._context_exclude_repr)
 
 
 class SideEffect:
@@ -325,7 +325,7 @@ class ClauseGroup(ModuleDict):
             except KeyError:
                 pass
         else:
-            raise KeyError(f"can't find clause with name: {name}")
+            raise KeyError("can't find clause with name: {}".format(name))
 
     def all_clauses(self):
         for cl in self.children():
@@ -457,7 +457,7 @@ class Contract(Module):
             return self.clauses(mp_idx, mp_val, context, annual, calculator_results=calculator_results)
 
     def extra_repr(self):
-        return f"$NAME$: {self.name}"
+        return "$NAME$: {}".format(self.name)
 
 
 # ============================= Converters ==============================

@@ -80,7 +80,7 @@ class ModelPointSet(Dataset):
         elif item in self.val_map():
             rst = self.mp_val[:, self.val_order().index(item)]
         else:
-            raise AttributeError(f"{item}")
+            raise AttributeError("{}".format(item))
         return rst
 
     def __len__(self):

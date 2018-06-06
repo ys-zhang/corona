@@ -44,3 +44,7 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(a.tolist(), [[1,2]] * 2, 'repeat failed')
         a[:, 0].sum().backward()
         self.assertEqual(ts.grad.tolist(), [[2, 0]])
+
+    def test_push(self):
+        ts = torch.tensor([1, 2, 3])
+        print(time_push1d(ts, 1))

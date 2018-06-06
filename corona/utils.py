@@ -161,6 +161,25 @@ def time_trunc(tbl: Tensor, aft: Tensor, fill=0)->Tensor:
                         for ts, i in zip(ts_lst, aft_lst)], 0)
 
 
+def time_push1d(ts: Tensor, to)->Tensor:
+    r"""
+    .. math::
+
+        $$ out_i = ts_{i - \text{to}} * \chi_{i \ge \text{to}}
+    """
+    rst = ts.new_zeros(ts.shape)
+    rst[to:] = ts[:(ts.nelement()-to)]
+    return rst
+
+
+def time_push(tbl: Tensor, to: Tensor)->Tensor:
+    to = to.long()
+    to_lst = to.tolist()
+    ts_lst = torch.unbind(tbl, 0)
+    return torch.stack([time_push1d(ts, i)
+                        for ts, i in zip(ts_lst, to_lst)], 0)
+
+
 class WaitingPeriod(nn.Module):
     """ Represents Waiting Period for liabilities.
     first `period_in_mth` columns of each input in `inputs` is annihilated.
@@ -302,7 +321,7 @@ def make_parameter(param, *, pad_n_col=None, pad_value=None, pad_mode=None) -> n
         if param.shape[1] < pad_n_col:
             param = pad(param, pad_n_col, pad_value, pad_mode)
         elif param.shape[1] > pad_n_col:
-            warnings.warn(f"param len longer than pad_n_col {pad_n_col}")
+            warnings.warn("param len longer than pad_n_col", RuntimeWarning)
             param = param[:, :pad_n_col]
     return nn.Parameter(param)
 

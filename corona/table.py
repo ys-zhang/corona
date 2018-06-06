@@ -182,7 +182,7 @@ class LookupTable(Table):
             self.index_table = torch.from_numpy(_index_table).long()
             self._is_one_dim_index = True
         else:
-            raise RuntimeError(f"dim of index_table bigger than 2")
+            raise RuntimeError("dim of index_table bigger than 2")
 
     def forward(self, lookup: Tensor):
         if self._is_one_dim_index:

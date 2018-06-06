@@ -166,7 +166,7 @@ class ProphetTable:
         self.dataframe = dataframe
         if cache and self.tabletype != ProphetTableType.ModelPoint:
             if self.tablename in self._ALL_TABLES_:
-                warnings.warn(f"tablename :{self.tablename} all ready exists",
+                warnings.warn("tablename :{} all ready exists".format(self.tablename),
                               RuntimeWarning)
             self._ALL_TABLES_[self.tablename] = self
 
@@ -175,7 +175,7 @@ class ProphetTable:
             raise AttributeError
         rst = getattr(self.dataframe, name)
         if isinstance(rst, pd.DataFrame) or isinstance(rst, pd.Series):
-            return ProphetTable(f"{self.tablename}.{name}", self.tabletype,
+            return ProphetTable("{}.{}".format(self.tablename, name), self.tabletype,
                                 rst, cache=False)
         else:
             return rst
@@ -187,12 +187,12 @@ class ProphetTable:
             try:
                 rst = self.dataframe.iloc[item]
             except TypeError:
-                warnings.warn(f"column selected from ProphetTable: {self.tablename}",
+                warnings.warn("column selected from ProphetTable: {}".format(self.tablename),
                               RuntimeWarning)
                 rst = self.dataframe[item]
 
         if isinstance(rst, pd.DataFrame) or isinstance(rst, pd.Series):
-            return ProphetTable(f"{self.tablename}[{item}]", self.tabletype,
+            return ProphetTable("{}[{}]".format(self.tablename, item), self.tabletype,
                                 rst, cache=False)
         elif self.tabletype == ProphetTableType.TableOfTable and isinstance(rst, str) \
                 and not self.plain_select:
@@ -215,8 +215,8 @@ class ProphetTable:
     def __repr__(self):
         if self.tablename is None:
             return repr(self.dataframe)
-        return f"TABLE_NAME: {self.tablename}" + '\n' \
-               f"TABLE_TYPE: {self.tabletype}" + '\n' \
+        return "TABLE_NAME: {}".format(self.tablename) + '\n' \
+               "TABLE_TYPE: {}".format(self.tabletype) + '\n' \
                + repr(self.dataframe)
 
     @classmethod
@@ -278,7 +278,7 @@ class ProphetTable:
             df.set_index(cls.MP_BATCH_COL, inplace=True)
             origin_row_num, real_row_num = p_rst['rowNum'], len(df)
             assert real_row_num == origin_row_num,\
-                f"The table should have {origin_row_num} points but {real_row_num} points are read"
+                "The table should have {} points but {} points are read".format(origin_row_num, real_row_num)
             return cls(tablename, ProphetTableType.ModelPoint, df)
 
     @classmethod
@@ -363,7 +363,7 @@ class ProphetTable:
             klass = ModelPointSet
         else:
             if not issubclass(klass, ModelPointSet):
-                warnings.warn(f"{klass} is not subclass of {ModelPointSet}")
+                warnings.warn("{} is not subclass of {}".format(klass, ModelPointSet))
         return klass(self.dataframe, *args_of_klass, **kwargs_of_klass)
 
     # noinspection PyArgumentList
@@ -393,7 +393,7 @@ class ProphetTable:
             klass = Probability
         else:
             if not issubclass(klass, Probability):
-                warnings.warn(f"{klass} is not subclass of {Probability}")
+                warnings.warn("{} is not subclass of {}".format(klass, Probability))
 
         return klass(qx, kx, *args_of_klass, name=self.tablename, **kwargs_of_klass)
 
@@ -414,7 +414,7 @@ class ProphetTable:
             klass = SelectionFactor
         else:
             if not issubclass(klass, SelectionFactor):
-                warnings.warn(f"{klass} is not subclass of {SelectionFactor}")
+                warnings.warn("{} is not subclass of {}".format(klass, SelectionFactor))
 
         return klass(fac, *args_of_klass, name=self.tablename, **kwargs_of_klass)
 
