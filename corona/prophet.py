@@ -1,5 +1,62 @@
 """
 utils for Sungard Prophet Format file support for example .fac .RPT file
+
+tables are read as instances of :class:`ProphetTable`. One table is read, the table
+is cached by `ProphetTable` and indexed by `tablename` exept model point tables.
+With the help of this mechanism we implement `Table of Table`.
+
+For now 5 kinds of Prophet Tables are supported:
+    #.  `GenericTable`
+    #.  `ModelPoint`
+    #.  `Parameter`
+    #.  `Probability`
+    #.  `TableOfTable`
+
+and functions are provided to help user read tables by path:
+    #.  `read_generic_table`
+    #.  `read_modelpoint_table`
+    #.  `read_parameter_table`
+    #.  `read_probability_table`
+    #.  `read_table_of_table`
+
+A `ProphetTable` is just like a pandas DataFrame, except that:
+    #. `[]` can select both row and column, but **we strongly recommend only use it only to select rows**.
+       At this version, a warn will be throw out if a column is returned.
+    #. Dot expression can be used to select column just like a DataFrame, for example `GLOBAL.RUN_99`
+       is column "RUN_99" of table "GLOBAL". **We strongly recommend you to use the dot expression only to select columns**.
+    #. Unlike `DataFrame`, there is not `loc` or `iloc` in a `ProphetTable`
+    #. When selecting cells with string value from a TableOfTable, the result can be different from other types
+       of ProphetTables. First the result is looked up in the cache, if there is a table chached with
+       the result string as its `tablename`, the cached table is returned in place of the result string.
+
+    .. note::
+
+            When `[]` is triggered,  first a function like `DataFrame.loc` is tried,
+            then a function like `DataFrame.iloc[]` is tried and at last the semantics
+            of `[]` in `pandas.DataFrame` is tried. If all these failed a KeyError is
+            raised.
+
+
+Example
+-------
+
+.. code::
+
+    prlife_reader("./Tables")
+    GLOBAL = ProphetTable.get_table('GLOBAL')  # global table is a Table of Table
+    GLOBAL.T # transpose the table
+    RUN13 = GLOBAL.RUN_13 # run 13 configeration, good style
+    RUN13 == GLOBAL['RUN_13'] # True, but bad style
+    CNG_TABLE_CONFIG_TBL = GLOBAL.RUN_13['CNG_TABLE_CONFIG_TBL'] # returns CNG_TABLE_CONFIG_TBL itself of run 13 not the table naem
+    CNG_TABLE_CONFIG_TBL == GLOBAL['CNG_TABLE_CONFIG_TBL', 'RUN_13'] # True, good style
+
+    # CNG_TABLE_CONFIG_TBL itself is a TableOfTable thus use can keep selecting like a chain
+    lapse_table = GLOBAL.RUN_13['CNG_TABLE_CONFIG_TBL'].TABLE_NAME['LAPSE']
+    # some times use may want tablenames not table it self. You can use the
+    # `dataframe` attribute of a TableOfTable
+    lapse_table_name = GLOBAL.RUN_13['CNG_TABLE_CONFIG_TBL'].TABLE_NAME.dataframe['LAPSE']  # type: str
+    lapse_table2017 = ProphetTable.get_table(lapse_table_name + '2017')
+
 """
 import pyparsing as pp
 import pandas as pd
@@ -10,7 +67,8 @@ import os
 import warnings
 
 __all__ = ['ProphetTable', 'read_generic_table', 'read_parameter_table',
-           'read_probability_table', 'read_modelpoint_table']
+           'read_probability_table', 'read_modelpoint_table',
+           'read_table_of_table', 'read_assumption_tables', 'prlife_reader']
 
 
 # ===================== Prophet Fac Table Reading ============================
@@ -44,6 +102,7 @@ Product = ColName.setResultsName('productCode') \
 VariableTypesLine = pp.Suppress('VARIABLE_TYPES,') +\
                     pp.Suppress(pp.ZeroOrMore(pp.White())+pp.Optional('T1,'))\
                     + pp.delimitedList(TableValue).setResultsName('varTypes')
+
 RowCountCheckerLine = pp.Suppress('NUMLINES,')\
                       + Integer.setResultsName('rowNum') + pp.lineEnd
 OutputFormatLine = pp.Suppress('Output_Format,') + pp.restOfLine\
@@ -99,6 +158,8 @@ class ProphetTable:
 
     _ALL_TABLES_ = {}
 
+    _BANDED_ATTRIBUTE = {'loc', 'iloc'}
+
     def __init__(self, tablename, tabletype, dataframe, *, cache=True):
         self.tablename = tablename
         self.tabletype = tabletype
@@ -110,7 +171,7 @@ class ProphetTable:
             self._ALL_TABLES_[self.tablename] = self
 
     def __getattr__(self, name):
-        if name == 'loc':
+        if name in self._BANDED_ATTRIBUTE:
             raise AttributeError
         rst = getattr(self.dataframe, name)
         if isinstance(rst, pd.DataFrame) or isinstance(rst, pd.Series):
@@ -133,7 +194,8 @@ class ProphetTable:
         if isinstance(rst, pd.DataFrame) or isinstance(rst, pd.Series):
             return ProphetTable(f"{self.tablename}[{item}]", self.tabletype,
                                 rst, cache=False)
-        elif self.tabletype == ProphetTableType.TableOfTable and isinstance(rst, str):
+        elif self.tabletype == ProphetTableType.TableOfTable and isinstance(rst, str) \
+                and not self.plain_select:
             return self._ALL_TABLES_.get(rst, rst)
         else:
             return rst
@@ -147,7 +209,7 @@ class ProphetTable:
         return get(prophet_var_types, cls.PROPHET_NUMPY_VAR_MAP)
 
     @staticmethod
-    def _guess_tablename(file):
+    def guess_tablename(file):
         return os.path.split(file)[1].split('.')[0]
 
     def __repr__(self):
@@ -166,16 +228,21 @@ class ProphetTable:
         """ Read file as *Prophet Generic Table*
 
         :param Union[str, File] file: path to the file
-        :param Optional[str] tablename: if not provided name is guessed from file
+        :param Optional[str] tablename: if not provided name is guessed from `file`
         :param Optional[ProphetTableType] tabletype: table type
-        :return: dataframe
+        :rtype: ProphetTable
         """
         if tablename is None:
-            tablename = cls._guess_tablename(file)
+            tablename = cls.guess_tablename(file)
         with open(file, errors='ignore') as file:
             lines = file.readlines()
             s = "".join(lines)
-            p_rst = cls.GenericTableParser.parseString(s)
+            try:
+                p_rst = cls.GenericTableParser.parseString(s)
+            except pp.ParseException as e:
+                print(file)
+                raise e
+
             table = cls.parse_result2table(p_rst['rows'])
             col_names = list(p_rst['colNames'])
             n_col = p_rst['colNum']
@@ -194,11 +261,11 @@ class ProphetTable:
         """Read file as *Prophet ModelPoint Table*
 
         :param Union[str, File] file: path to the file
-        :param Optional[str] tablename: if not provided name is guessed from file
-        :return: dataframe
+        :param Optional[str] tablename: if not provided name is guessed from `file`
+        :rtype: ProphetTable
         """
         if tablename is None:
-            tablename = cls._guess_tablename(file)
+            tablename = cls.guess_tablename(file)
         with open(file, errors='ignore') as file:
             lines = file.readlines()
             s = "".join(lines)
@@ -220,7 +287,8 @@ class ProphetTable:
         A simple reader of *Prophet Parameter Table*
 
         :param Union[str, File] file: path to the file
-        :param Optional[str] tablename: if not provided name is guessed from file
+        :param Optional[str] tablename: if not provided name is guessed from `file`
+        :rtype: ProphetTable
         """
         return cls.read_generic_table(file, ProphetTableType.Parameter, tablename)
 
@@ -230,17 +298,26 @@ class ProphetTable:
         A simple reader of *Prophet TableOfTable*
 
         :param Union[str, File] file: path to the file
-        :param Optional[str] tablename: if not provided name is guessed from file
+        :param Optional[str] tablename: if not provided name is guessed from `file`
+        :rtype: ProphetTable
         """
         return cls.read_generic_table(file, ProphetTableType.TableOfTable, tablename)
 
     @classmethod
     def read_probability_table(cls, m_file, f_file=None, tablename=None):
+        """ Read as Probability Table
+
+        :param m_file: path of file of probability of male.
+        :param f_file:  path of file of probability of female, Default: `m_file`
+        :param tablename: Default: if f_file is not None, then the largest common sub string
+            is used as tablename else guessed from `m_file`.
+        :rtype: ProphetTable
+        """
         if tablename is None:
-            m_tablename = cls._guess_tablename(m_file)
+            m_tablename = cls.guess_tablename(m_file)
             if f_file is not None:
                 from difflib import SequenceMatcher
-                f_tablename = cls._guess_tablename(f_file)
+                f_tablename = cls.guess_tablename(f_file)
                 match = SequenceMatcher(None, m_tablename, f_tablename)\
                     .find_longest_match(0, len(m_tablename), 0, len(f_tablename))
                 tablename = m_tablename[match.a: match.a + match.size].rstrip('_')
@@ -342,6 +419,8 @@ class ProphetTable:
         return klass(fac, *args_of_klass, name=self.tablename, **kwargs_of_klass)
 
 
+
+
 read_generic_table = ProphetTable.read_generic_table
 read_parameter_table = ProphetTable.read_parameter_table
 read_probability_table = ProphetTable.read_probability_table
@@ -349,5 +428,114 @@ read_modelpoint_table = ProphetTable.read_modelpoint_table
 read_table_of_table = ProphetTable.read_table_of_table
 
 
-def read_tables_from(folder_path):
-    pass
+def read_assumption_tables(folder, *, tot_pattern=None,
+                           param_pattern=None, prob_folder=None,
+                           exclude_folder = None,
+                           exclude_pattern=None, clear_cache=False):
+    """ Read All tables in folder. First exclude_folder and exclude_pattern are
+    used to test if the table should be ignored, then prob_folder is used to
+    test if the table should be read as probability table, at last tot_pattern is
+    used to test if table should be read as a table of tables.
+    If all tests failed, the table will be read as a generic table.
+
+    .. note::
+
+        Links are treated as folders, it can lead to infinite recursion if a link points to a parent directory of itself
+
+
+    >>> read_assumption_tables("./TABLES", prob_folder='MORT',\
+                               param_pattern=r'PARAMET_.+',\
+                               tot_pattern='GLOBAL|.*_TABLE_CONFIG',\
+                               exclude_folder='CROSS_LASTVAL',\
+                               exclude_pattern='PRICING_AGE_TBL',\
+                               clear_cache=True)
+
+    :param str folder: path of the folder
+    :param str tot_pattern: regular expression of tablename of table of tables
+    :param str param_pattern: regular expression of tablename of parameter table
+    :param str prob_folder:  name(not path) of sub folder in which all tables are
+        recognized as probability table
+    :param str exclude_folder: name(not path) of sub folder in which all tables are
+        ignored
+    :param str exclude_pattern: regular expression of table name that should be ignored
+    :param bool clear_cache: if clear cached tables before reading, default False
+    """
+    import re, os
+    get_name = ProphetTable.guess_tablename
+
+    if clear_cache:
+        ProphetTable.clear_cache()
+
+    def compile_re(p):
+        if isinstance(p, str):
+            _p = re.compile(p)
+            return lambda file: _p.fullmatch(get_name(file))
+        elif p is None:
+            return lambda _: False
+        else:
+            raise TypeError(p)
+
+    tot_pattern = compile_re(tot_pattern)
+    param_pattern = compile_re(param_pattern)
+    exclude_pattern = compile_re(exclude_pattern)
+
+    if prob_folder is None:
+        prob_folder = lambda _: False
+    elif isinstance(prob_folder, str):
+        from pathlib import Path
+        _f = prob_folder
+        prob_folder = lambda d: _f in Path(d).parts
+    else:
+        raise TypeError(prob_folder)
+
+    if exclude_folder is None:
+        exclude_folder = lambda _: False
+    elif isinstance(exclude_folder, str):
+        from pathlib import Path
+        _e = exclude_folder
+        exclude_folder = lambda d: _e in Path(d).parts
+    else:
+        raise TypeError(exclude_folder)
+
+    rst = {
+        'prob': [],
+        'tot': [],
+        'param': [],
+        'gen': []
+    }
+
+    for root, dirs, files in os.walk(folder, followlinks=True):
+        for f in files:
+            f = os.path.join(root, f)
+            if exclude_pattern(f):
+                continue
+            elif exclude_folder(f):
+                continue
+            elif prob_folder(f):
+                rst['prob'].append(read_probability_table(f))
+            elif param_pattern(f):
+                rst['param'].append(read_parameter_table(f))
+            elif tot_pattern(f):
+                rst['tot'].append(read_table_of_table(f))
+            else:
+                rst['gen'].append(read_generic_table(f))
+
+    return rst
+
+
+def prlife_reader(folder, clear_cache=True):
+    """ Read All Assumption tables in folder
+
+    >>> prlife_reader('./TABLES')
+
+    :param folder:
+    :param bool clear_cache: if clear all cached tables before reading default True
+    :return: dict of tables with tablename as key
+    :rtype: dict
+    """
+    return read_assumption_tables(folder, prob_folder='MORT',
+                                  param_pattern=r'PARAMET_.+',
+                                  tot_pattern='GLOBAL|.*_TABLE_CONFIG',
+                                  exclude_folder='CROSS_LASTVAL',
+                                  exclude_pattern='PRICING_AGE_TBL',
+                                  clear_cache=clear_cache)

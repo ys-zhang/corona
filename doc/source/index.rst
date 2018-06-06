@@ -12,6 +12,7 @@ Welcome to corona's documentation!
 
    contract
    table
+   prophet
 
 
 Indices and tables

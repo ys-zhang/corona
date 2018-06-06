@@ -18,9 +18,6 @@ Index Table
 Lookup Table
 ------------
 
-.. autoclass:: PadMode
-
-
 .. autoclass:: LookupTable
     :members:
     :special-members:
