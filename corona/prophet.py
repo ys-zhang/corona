@@ -124,15 +124,13 @@ class ProphetTable:
 
     """
 
+    # Generic Table Parser the parsing result has follow keys:
+    #     - tableCaption: the caption and description for the table
+    #     - colNum: how many columns does the table have, index not include
+    #     - tblStartAt: the first column of data start at where, the value minus
+    #       1 is the num of indexes
+    #     - colNames: names of indexes and data columns
     GenericTableParser = FirstLine + HeadLine + Table
-    """Generic Table Parser the parsing result has follow keys:
-    
-        - tableCaption: the caption and description for the table
-        - colNum: how many columns does the table have, index not include
-        - tblStartAt: the first column of data start at where, the value minus 
-          1 is the num of indexes
-        - colNames: names of indexes and data columns  
-    """
 
     ModelPointTableParser = MPTableName + OutputFormatLine \
         + RowCountCheckerLine + VariableTypesLine + HeadLine + Table
@@ -441,12 +439,12 @@ def read_assumption_tables(folder, *, tot_pattern=None,
         Links are treated as folders, it can lead to infinite recursion if a link points to a parent directory of itself
 
 
-    >>> read_assumption_tables("./TABLES", prob_folder='MORT',\
-                               param_pattern=r'PARAMET_.+',\
-                               tot_pattern='GLOBAL|.*_TABLE_CONFIG',\
-                               exclude_folder='CROSS_LASTVAL',\
-                               exclude_pattern='PRICING_AGE_TBL',\
-                               clear_cache=True)
+    >>> read_assumption_tables("./TABLES", prob_folder='MORT',
+    ...                        param_pattern=r'PARAMET_.+',
+    ...                        tot_pattern='GLOBAL|.*_TABLE_CONFIG',
+    ...                        exclude_folder='CROSS_LASTVAL',
+    ...                        exclude_pattern='PRICING_AGE_TBL',
+    ...                        clear_cache=True)
 
     :param str folder: path of the folder
     :param str tot_pattern: regular expression of tablename of table of tables

@@ -1,0 +1,455 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Probability &mdash; corona 0.1a1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="genindex.html"/>
+        <link rel="search" title="Search" href="search.html"/>
+    <link rel="top" title="corona 0.1a1 documentation" href="index.html"/>
+        <link rel="next" title="Model Point And Data Set" href="modelpoint.html"/>
+        <link rel="prev" title="Tables and Lookup Tables" href="table.html"/> 
+
+  
+  <script src="_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="index.html" class="icon icon-home"> corona
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1a1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Package Reference:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="contract.html">Contract</a></li>
+<li class="toctree-l1"><a class="reference internal" href="table.html">Tables and Lookup Tables</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Probability</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#module-corona.core.prob.cn">Predefined Probabilities</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="modelpoint.html">Model Point And Data Set</a></li>
+<li class="toctree-l1"><a class="reference internal" href="prophet.html">Compatibility of Sungard Prophet Format Tables</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">corona</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+      <li>Probability</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/probability.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="module-corona.core.prob">
+<span id="probability"></span><h1>Probability<a class="headerlink" href="#module-corona.core.prob" title="Permalink to this headline">¶</a></h1>
+<p>Models of Probability</p>
+<p><a class="reference internal" href="#corona.core.prob.Probability" title="corona.core.prob.Probability"><code class="xref py py-class docutils literal notranslate"><span class="pre">Probability</span></code></a> helps to define a probability table.
+<a class="reference internal" href="#corona.core.prob.SelectionFactor" title="corona.core.prob.SelectionFactor"><code class="xref py py-class docutils literal notranslate"><span class="pre">SelectionFactor</span></code></a> helps to define a probability table.</p>
+<dl class="class">
+<dt id="corona.core.prob.Probability">
+<em class="property">class </em><code class="descname">Probability</code><span class="sig-paren">(</span><em>qx=None</em>, <em>kx=None</em>, <em>*</em>, <em>name=''</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/prob/prob.html#Probability"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.prob.Probability" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="method">
+<dt id="corona.core.prob.Probability.combine_selection_factor">
+<code class="descname">combine_selection_factor</code><span class="sig-paren">(</span><em>sele_layer</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/prob/prob.html#Probability.combine_selection_factor"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.prob.Probability.combine_selection_factor" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>sele_layer</strong> (<a class="reference internal" href="#corona.core.prob.SelectionFactor" title="corona.core.prob.SelectionFactor"><em>SelectionFactor</em></a>) – </td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference internal" href="#corona.core.prob.SelectedProbability" title="corona.core.prob.SelectedProbability">SelectedProbability</a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="corona.core.prob.Probability.extra_repr">
+<code class="descname">extra_repr</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/prob/prob.html#Probability.extra_repr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.prob.Probability.extra_repr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set the extra representation of the module</p>
+<p>To print customized extra information, you should reimplement
+this method in your own modules. Both single-line and multi-line
+strings are acceptable.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="corona.core.prob.Probability.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>mp_idx</em>, <em>mp_val</em>, <em>annual=False</em><span class="sig-paren">)</span> &#x2192; torch.Tensor<a class="reference internal" href="_modules/corona/core/prob/prob.html#Probability.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.prob.Probability.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Defines the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Although the recipe for forward pass needs to be defined within
+this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="corona.core.prob.Probability.monthly_probs">
+<code class="descname">monthly_probs</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/prob/prob.html#Probability.monthly_probs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.prob.Probability.monthly_probs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Monthly version of the probability tables</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">qx_mth, kx_mth</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="corona.core.prob.Probability.new_with_kx">
+<code class="descname">new_with_kx</code><span class="sig-paren">(</span><em>kx</em>, <em>name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/prob/prob.html#Probability.new_with_kx"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.prob.Probability.new_with_kx" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a new instance of Probability with same qx but new kx</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>Parameter</strong><strong>, </strong><strong>ndarray</strong><strong>, </strong><strong>list</strong><strong>] </strong><strong>kx</strong> (<em>Union</em><em>[</em><em>Tensor</em><em>,</em>) – new kx</li>
+<li><strong>name</strong> (<em>str</em>) – name of new Probability</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference internal" href="#corona.core.prob.Probability" title="corona.core.prob.Probability">Probability</a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="corona.core.prob.Probability.set_parameter">
+<code class="descname">set_parameter</code><span class="sig-paren">(</span><em>px</em>, <em>kx=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/prob/prob.html#Probability.set_parameter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.prob.Probability.set_parameter" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set Parameter with new tensor value</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>px</strong> (<em>Tensor</em>) – </li>
+<li><strong>kx</strong> (<em>Tensor</em>) – </li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">self</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="corona.core.prob.Inevitable">
+<em class="property">class </em><code class="descname">Inevitable</code><a class="reference internal" href="_modules/corona/core/prob/prob.html#Inevitable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.prob.Inevitable" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="method">
+<dt id="corona.core.prob.Inevitable.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>mp_idx</em>, <em>mp_val</em>, <em>annual=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/prob/prob.html#Inevitable.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.prob.Inevitable.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Defines the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Although the recipe for forward pass needs to be defined within
+this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="corona.core.prob.SelectionFactor">
+<em class="property">class </em><code class="descname">SelectionFactor</code><span class="sig-paren">(</span><em>fac=None</em>, <em>*</em>, <em>name=''</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/prob/prob.html#SelectionFactor"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.prob.SelectionFactor" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="method">
+<dt id="corona.core.prob.SelectionFactor.extra_repr">
+<code class="descname">extra_repr</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/prob/prob.html#SelectionFactor.extra_repr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.prob.SelectionFactor.extra_repr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set the extra representation of the module</p>
+<p>To print customized extra information, you should reimplement
+this method in your own modules. Both single-line and multi-line
+strings are acceptable.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="corona.core.prob.SelectionFactor.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>mp_idx</em>, <em>mp_val</em>, <em>annual</em><span class="sig-paren">)</span> &#x2192; torch.Tensor<a class="reference internal" href="_modules/corona/core/prob/prob.html#SelectionFactor.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.prob.SelectionFactor.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Defines the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Although the recipe for forward pass needs to be defined within
+this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="corona.core.prob.SelectedProbability">
+<em class="property">class </em><code class="descname">SelectedProbability</code><span class="sig-paren">(</span><em>prob_layer: torch.nn.modules.module.Module</em>, <em>sele_layer: torch.nn.modules.module.Module = None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/prob/prob.html#SelectedProbability"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.prob.SelectedProbability" title="Permalink to this definition">¶</a></dt>
+<dd><dl class="method">
+<dt id="corona.core.prob.SelectedProbability.extra_repr">
+<code class="descname">extra_repr</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/prob/prob.html#SelectedProbability.extra_repr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.prob.SelectedProbability.extra_repr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set the extra representation of the module</p>
+<p>To print customized extra information, you should reimplement
+this method in your own modules. Both single-line and multi-line
+strings are acceptable.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="corona.core.prob.SelectedProbability.forward">
+<code class="descname">forward</code><span class="sig-paren">(</span><em>mp_idx</em>, <em>mp_val</em>, <em>annual</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/prob/prob.html#SelectedProbability.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.prob.SelectedProbability.forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Defines the computation performed at every call.</p>
+<p>Should be overridden by all subclasses.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Although the recipe for forward pass needs to be defined within
+this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
+instead of this since the former takes care of running the
+registered hooks while the latter silently ignores them.</p>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+<div class="section" id="module-corona.core.prob.cn">
+<span id="predefined-probabilities"></span><h2>Predefined Probabilities<a class="headerlink" href="#module-corona.core.prob.cn" title="Permalink to this headline">¶</a></h2>
+<p>Predefined Probability Tables for valuation in China</p>
+<dl class="data">
+<dt id="corona.core.prob.cn.CL03">
+<code class="descname">CL03</code><em class="property"> = Probability(CL03)</em><a class="headerlink" href="#corona.core.prob.cn.CL03" title="Permalink to this definition">¶</a></dt>
+<dd><p>中国非养老03表</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="corona.core.prob.cn.CL03A">
+<code class="descname">CL03A</code><em class="property"> = Probability(CL03A)</em><a class="headerlink" href="#corona.core.prob.cn.CL03A" title="Permalink to this definition">¶</a></dt>
+<dd><p>中国养老03表</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="corona.core.prob.cn.CL13_I">
+<code class="descname">CL13_I</code><em class="property"> = Probability(CL13_I)</em><a class="headerlink" href="#corona.core.prob.cn.CL13_I" title="Permalink to this definition">¶</a></dt>
+<dd><p>中国13， 非养老I表</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="corona.core.prob.cn.CL13_II">
+<code class="descname">CL13_II</code><em class="property"> = Probability(CL13_II)</em><a class="headerlink" href="#corona.core.prob.cn.CL13_II" title="Permalink to this definition">¶</a></dt>
+<dd><p>中国13， 非养老II表</p>
+</dd></dl>
+
+<dl class="data">
+<dt id="corona.core.prob.cn.CL13A">
+<code class="descname">CL13A</code><em class="property"> = Probability(CL13A)</em><a class="headerlink" href="#corona.core.prob.cn.CL13A" title="Permalink to this definition">¶</a></dt>
+<dd><p>中国13， 养老表</p>
+</dd></dl>
+
+</div>
+</div>
+
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="modelpoint.html" class="btn btn-neutral float-right" title="Model Point And Data Set" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="table.html" class="btn btn-neutral" title="Tables and Lookup Tables" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, riesz.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'./',
+            VERSION:'0.1a1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="_static/jquery.js"></script>
+      <script type="text/javascript" src="_static/underscore.js"></script>
+      <script type="text/javascript" src="_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>

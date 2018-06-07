@@ -1,0 +1,765 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>corona.prophet &mdash; corona 0.1a1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+
+  
+  
+    
+
+  
+
+  
+  
+    <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  
+
+  
+
+  
+        <link rel="index" title="Index"
+              href="../../genindex.html"/>
+        <link rel="search" title="Search" href="../../search.html"/>
+    <link rel="top" title="corona 0.1a1 documentation" href="../../index.html"/>
+        <link rel="up" title="Module code" href="../index.html"/> 
+
+  
+  <script src="../../_static/js/modernizr.min.js"></script>
+
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+   
+  <div class="wy-grid-for-nav">
+
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search">
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> corona
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1a1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Package Reference:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../contract.html">Contract</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../table.html">Tables and Lookup Tables</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../probability.html">Probability</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../modelpoint.html">Model Point And Data Set</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../prophet.html">Compatibility of Sungard Prophet Format Tables</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" role="navigation" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">corona</a>
+        
+      </nav>
+
+
+      
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>corona.prophet</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for corona.prophet</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">utils for Sungard Prophet Format file support for example .fac .RPT file</span>
+
+<span class="sd">tables are read as instances of :class:`ProphetTable`. One table is read, the table</span>
+<span class="sd">is cached by `ProphetTable` and indexed by `tablename` exept model point tables.</span>
+<span class="sd">With the help of this mechanism we implement `Table of Table`.</span>
+
+<span class="sd">For now 5 kinds of Prophet Tables are supported:</span>
+<span class="sd">    #.  `GenericTable`</span>
+<span class="sd">    #.  `ModelPoint`</span>
+<span class="sd">    #.  `Parameter`</span>
+<span class="sd">    #.  `Probability`</span>
+<span class="sd">    #.  `TableOfTable`</span>
+
+<span class="sd">and 5 functions are provided to help user read tables by path:</span>
+<span class="sd">    #.  `read_generic_table`</span>
+<span class="sd">    #.  `read_modelpoint_table`</span>
+<span class="sd">    #.  `read_parameter_table`</span>
+<span class="sd">    #.  `read_probability_table`</span>
+<span class="sd">    #.  `read_table_of_table`</span>
+
+<span class="sd">A `ProphetTable` is just like a pandas DataFrame, except that:</span>
+<span class="sd">    #. `[]` can select both row and column, but **we strongly recommend only use it when selecting rows**.</span>
+<span class="sd">       At this version, a warn will be thrown out if a column is selected and returned.</span>
+<span class="sd">    #. Dot expression can be used to select column just like a DataFrame, for example `GLOBAL.RUN_99`</span>
+<span class="sd">       is column &quot;RUN_99&quot; of table &quot;GLOBAL&quot;. **We strongly recommend you to use the dot expression only to select columns**.</span>
+<span class="sd">    #. Unlike `DataFrame`, there is not `loc` or `iloc` in a `ProphetTable`</span>
+<span class="sd">    #. When selecting cells with string value from a TableOfTable, the result can be different from other types</span>
+<span class="sd">       of ProphetTables. First the result is looked up in the cache, if there is a table chached with</span>
+<span class="sd">       the result string as its `tablename`, the cached table is returned in place of the result string.</span>
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">            When `[]` is triggered,  first a function like :attr:`DataFrame.loc` is tried,</span>
+<span class="sd">            then a function like :attr:`DataFrame.iloc` is tried and at last the semantics</span>
+<span class="sd">            of `[]` in :class:`pandas.DataFrame` is tried. If all these failed a KeyError is</span>
+<span class="sd">            raised.</span>
+
+
+<span class="sd">Example</span>
+<span class="sd">-------</span>
+
+<span class="sd">.. code::</span>
+
+<span class="sd">    prlife_read(&quot;./Tables&quot;)</span>
+<span class="sd">    GLOBAL = ProphetTable.get_table(&#39;GLOBAL&#39;)  # global table is a Table of Table</span>
+<span class="sd">    GLOBAL.T # transpose the table</span>
+<span class="sd">    RUN13 = GLOBAL.RUN_13 # run 13 configeration, good style</span>
+<span class="sd">    RUN13 == GLOBAL[&#39;RUN_13&#39;] # True, but bad style</span>
+<span class="sd">    CNG_TABLE_CONFIG_TBL = GLOBAL.RUN_13[&#39;CNG_TABLE_CONFIG_TBL&#39;] # returns CNG_TABLE_CONFIG_TBL itself of run 13 not the table name</span>
+<span class="sd">    CNG_TABLE_CONFIG_TBL == GLOBAL[&#39;CNG_TABLE_CONFIG_TBL&#39;, &#39;RUN_13&#39;] # True, good style</span>
+
+<span class="sd">    # CNG_TABLE_CONFIG_TBL itself is a TableOfTable thus use can keep selecting like a chain</span>
+<span class="sd">    lapse_table = GLOBAL.RUN_13[&#39;CNG_TABLE_CONFIG_TBL&#39;].TABLE_NAME[&#39;LAPSE&#39;]</span>
+<span class="sd">    # some times use may want tablenames not table it self. You can use the</span>
+<span class="sd">    # `dataframe` attribute of a TableOfTable</span>
+<span class="sd">    lapse_table_name = GLOBAL.RUN_13[&#39;CNG_TABLE_CONFIG_TBL&#39;].TABLE_NAME.dataframe[&#39;LAPSE&#39;]  # type: str</span>
+<span class="sd">    lapse_table2017 = ProphetTable.get_table(lapse_table_name + &#39;2017&#39;)</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">pyparsing</span> <span class="k">as</span> <span class="nn">pp</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">cytoolz</span> <span class="k">import</span> <span class="n">get</span>
+<span class="kn">import</span> <span class="nn">enum</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;ProphetTable&#39;</span><span class="p">,</span> <span class="s1">&#39;read_generic_table&#39;</span><span class="p">,</span> <span class="s1">&#39;read_parameter_table&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;read_probability_table&#39;</span><span class="p">,</span> <span class="s1">&#39;read_modelpoint_table&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;read_table_of_table&#39;</span><span class="p">,</span> <span class="s1">&#39;read_assumption_tables&#39;</span><span class="p">,</span> <span class="s1">&#39;prlife_read&#39;</span><span class="p">]</span>
+
+
+<span class="c1"># ===================== Prophet Fac Table Reading ============================</span>
+
+
+<span class="n">Comment</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">restOfLine</span><span class="o">.</span><span class="n">setParseAction</span><span class="p">(</span><span class="k">lambda</span> <span class="n">toks</span><span class="p">:</span> <span class="n">toks</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+<span class="n">Integer</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">Combine</span><span class="p">(</span><span class="n">pp</span><span class="o">.</span><span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="n">pp</span><span class="o">.</span><span class="n">Word</span><span class="p">(</span><span class="n">pp</span><span class="o">.</span><span class="n">nums</span><span class="p">))</span>\
+    <span class="o">.</span><span class="n">setParseAction</span><span class="p">(</span><span class="k">lambda</span> <span class="n">toks</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">toks</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+<span class="n">Float</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">Combine</span><span class="p">(</span><span class="n">pp</span><span class="o">.</span><span class="n">Word</span><span class="p">(</span><span class="n">pp</span><span class="o">.</span><span class="n">nums</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;.&#39;</span> <span class="o">+</span> <span class="n">pp</span><span class="o">.</span><span class="n">Word</span><span class="p">(</span><span class="n">pp</span><span class="o">.</span><span class="n">nums</span><span class="p">))</span>\
+    <span class="o">.</span><span class="n">setParseAction</span><span class="p">(</span><span class="k">lambda</span> <span class="n">toks</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">toks</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+<span class="n">Number</span> <span class="o">=</span> <span class="n">Float</span> <span class="o">|</span> <span class="n">Integer</span>
+
+<span class="n">TableValue</span> <span class="o">=</span> <span class="n">Number</span> <span class="o">|</span> <span class="n">pp</span><span class="o">.</span><span class="n">Word</span><span class="p">(</span><span class="n">pp</span><span class="o">.</span><span class="n">alphanums</span> <span class="o">+</span> <span class="s1">&#39;_&#39;</span><span class="p">)</span> <span class="o">|</span> <span class="n">pp</span><span class="o">.</span><span class="n">QuotedString</span><span class="p">(</span><span class="s1">&#39;&quot;&#39;</span><span class="p">)</span>
+<span class="n">TableStartAt</span> <span class="o">=</span> <span class="n">Integer</span><span class="o">.</span><span class="n">setResultsName</span><span class="p">(</span><span class="s1">&#39;tblStartAt&#39;</span><span class="p">)</span>
+<span class="n">ColName</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">Word</span><span class="p">(</span><span class="n">pp</span><span class="o">.</span><span class="n">alphanums</span> <span class="o">+</span> <span class="s1">&#39;_[]&#39;</span><span class="p">)</span> <span class="o">|</span> <span class="n">pp</span><span class="o">.</span><span class="n">QuotedString</span><span class="p">(</span><span class="s1">&#39;&quot;&#39;</span><span class="p">)</span>
+
+<span class="n">EndOfTable</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">Suppress</span><span class="p">(</span><span class="n">pp</span><span class="o">.</span><span class="n">Literal</span><span class="p">(</span><span class="s1">r&#39;\x1a##END##&#39;</span><span class="p">))</span>
+<span class="n">FirstLine</span> <span class="o">=</span> <span class="n">Integer</span><span class="o">.</span><span class="n">setResultsName</span><span class="p">(</span><span class="s1">&#39;colNum&#39;</span><span class="p">)</span> \
+            <span class="o">+</span> <span class="p">(</span><span class="n">Comment</span><span class="o">.</span><span class="n">setResultsName</span><span class="p">(</span><span class="s1">&#39;tableCaption&#39;</span><span class="p">)</span> <span class="o">|</span> <span class="n">pp</span><span class="o">.</span><span class="n">lineEnd</span><span class="p">)</span>
+<span class="n">HeadLine</span> <span class="o">=</span> <span class="p">(</span><span class="n">pp</span><span class="o">.</span><span class="n">Suppress</span><span class="p">(</span><span class="s1">&#39;!&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="n">pp</span><span class="o">.</span><span class="n">Optional</span><span class="p">(</span><span class="n">TableStartAt</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;,&#39;</span>
+            <span class="o">+</span> <span class="n">pp</span><span class="o">.</span><span class="n">delimitedList</span><span class="p">(</span><span class="n">ColName</span><span class="p">)</span><span class="o">.</span><span class="n">setResultsName</span><span class="p">(</span><span class="s1">&#39;colNames&#39;</span><span class="p">))</span> \
+    <span class="o">.</span><span class="n">setResultsName</span><span class="p">(</span><span class="s1">&#39;header&#39;</span><span class="p">)</span>
+<span class="n">TableLine</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">Suppress</span><span class="p">(</span><span class="s1">&#39;*,&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="n">pp</span><span class="o">.</span><span class="n">delimitedList</span><span class="p">(</span><span class="n">TableValue</span><span class="p">)</span>\
+    <span class="o">.</span><span class="n">setResultsName</span><span class="p">(</span><span class="s1">&#39;rows&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+<span class="n">Table</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">OneOrMore</span><span class="p">(</span><span class="n">TableLine</span><span class="p">)</span><span class="o">.</span><span class="n">setResultsName</span><span class="p">(</span><span class="s1">&#39;table&#39;</span><span class="p">)</span>
+
+<span class="n">Product</span> <span class="o">=</span> <span class="n">ColName</span><span class="o">.</span><span class="n">setResultsName</span><span class="p">(</span><span class="s1">&#39;productCode&#39;</span><span class="p">)</span> \
+              <span class="o">+</span> <span class="n">pp</span><span class="o">.</span><span class="n">Optional</span><span class="p">(</span><span class="n">pp</span><span class="o">.</span><span class="n">Suppress</span><span class="p">(</span><span class="s1">&#39;#&#39;</span><span class="p">)</span>
+                            <span class="o">+</span> <span class="n">ColName</span><span class="o">.</span><span class="n">setResultsName</span><span class="p">(</span><span class="s1">&#39;subProductCode&#39;</span><span class="p">))</span>
+
+<span class="n">VariableTypesLine</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">Suppress</span><span class="p">(</span><span class="s1">&#39;VARIABLE_TYPES,&#39;</span><span class="p">)</span> <span class="o">+</span>\
+                    <span class="n">pp</span><span class="o">.</span><span class="n">Suppress</span><span class="p">(</span><span class="n">pp</span><span class="o">.</span><span class="n">ZeroOrMore</span><span class="p">(</span><span class="n">pp</span><span class="o">.</span><span class="n">White</span><span class="p">())</span><span class="o">+</span><span class="n">pp</span><span class="o">.</span><span class="n">Optional</span><span class="p">(</span><span class="s1">&#39;T1,&#39;</span><span class="p">))</span>\
+                    <span class="o">+</span> <span class="n">pp</span><span class="o">.</span><span class="n">delimitedList</span><span class="p">(</span><span class="n">TableValue</span><span class="p">)</span><span class="o">.</span><span class="n">setResultsName</span><span class="p">(</span><span class="s1">&#39;varTypes&#39;</span><span class="p">)</span>
+
+<span class="n">RowCountCheckerLine</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">Suppress</span><span class="p">(</span><span class="s1">&#39;NUMLINES,&#39;</span><span class="p">)</span>\
+                      <span class="o">+</span> <span class="n">Integer</span><span class="o">.</span><span class="n">setResultsName</span><span class="p">(</span><span class="s1">&#39;rowNum&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="n">pp</span><span class="o">.</span><span class="n">lineEnd</span>
+<span class="n">OutputFormatLine</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">Suppress</span><span class="p">(</span><span class="s1">&#39;Output_Format,&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="n">pp</span><span class="o">.</span><span class="n">restOfLine</span>\
+    <span class="o">.</span><span class="n">setResultsName</span><span class="p">(</span><span class="s1">&#39;outputFormat&#39;</span><span class="p">)</span>
+<span class="n">MPTableName</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">restOfLine</span><span class="o">.</span><span class="n">setResultsName</span><span class="p">(</span><span class="s1">&#39;tableCaption&#39;</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">ProphetTableType</span><span class="p">(</span><span class="n">enum</span><span class="o">.</span><span class="n">IntEnum</span><span class="p">):</span>
+    <span class="n">GenericTable</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">ModelPoint</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">Sales</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">Parameter</span> <span class="o">=</span> <span class="mi">3</span>
+    <span class="n">Probability</span> <span class="o">=</span> <span class="mi">4</span>
+    <span class="n">TableOfTable</span> <span class="o">=</span> <span class="mi">5</span>
+
+
+<div class="viewcode-block" id="ProphetTable"><a class="viewcode-back" href="../../prophet.html#corona.prophet.ProphetTable">[docs]</a><span class="k">class</span> <span class="nc">ProphetTable</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot; Class used for **Prophet** table management and reading.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Generic Table Parser the parsing result has follow keys:</span>
+    <span class="c1">#     - tableCaption: the caption and description for the table</span>
+    <span class="c1">#     - colNum: how many columns does the table have, index not include</span>
+    <span class="c1">#     - tblStartAt: the first column of data start at where, the value minus</span>
+    <span class="c1">#       1 is the num of indexes</span>
+    <span class="c1">#     - colNames: names of indexes and data columns</span>
+    <span class="n">GenericTableParser</span> <span class="o">=</span> <span class="n">FirstLine</span> <span class="o">+</span> <span class="n">HeadLine</span> <span class="o">+</span> <span class="n">Table</span>
+
+    <span class="n">ModelPointTableParser</span> <span class="o">=</span> <span class="n">MPTableName</span> <span class="o">+</span> <span class="n">OutputFormatLine</span> \
+        <span class="o">+</span> <span class="n">RowCountCheckerLine</span> <span class="o">+</span> <span class="n">VariableTypesLine</span> <span class="o">+</span> <span class="n">HeadLine</span> <span class="o">+</span> <span class="n">Table</span>
+
+    <span class="n">ProbabilityTableParser</span> <span class="o">=</span> <span class="n">FirstLine</span> <span class="o">+</span> <span class="n">HeadLine</span> <span class="o">+</span> <span class="n">pp</span><span class="o">.</span><span class="n">OneOrMore</span><span class="p">(</span>
+        <span class="n">pp</span><span class="o">.</span><span class="n">Suppress</span><span class="p">(</span><span class="n">Integer</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="n">pp</span><span class="o">.</span><span class="n">delimitedList</span><span class="p">(</span><span class="n">Number</span><span class="p">)</span><span class="o">.</span><span class="n">setResultsName</span><span class="p">(</span><span class="s1">&#39;rows&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span> <span class="o">|</span> <span class="n">Number</span><span class="p">)</span> <span class="o">+</span>
+        <span class="n">pp</span><span class="o">.</span><span class="n">Suppress</span><span class="p">(</span><span class="n">Integer</span><span class="p">)</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">setResultsName</span><span class="p">(</span><span class="s1">&#39;table&#39;</span><span class="p">)</span>
+
+    <span class="n">PROPHET_NUMPY_VAR_MAP</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;I&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">,</span>
+        <span class="s1">&#39;S&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">,</span>
+        <span class="s1">&#39;N&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">float</span><span class="p">,</span>
+    <span class="p">}</span>
+
+    <span class="c1"># mp special column</span>
+    <span class="n">MP_BATCH_COL</span> <span class="o">=</span> <span class="s1">&#39;SPCODE&#39;</span>
+    <span class="n">MP_AGE_COL</span> <span class="o">=</span> <span class="s1">&#39;AGE_AT_ENTRY&#39;</span>
+    <span class="n">MP_SEX_COL</span> <span class="o">=</span> <span class="s1">&#39;SEX&#39;</span>
+    <span class="n">MP_BFT_COL</span> <span class="o">=</span> <span class="s1">&#39;POL_TERM_Y&#39;</span>
+    <span class="n">MP_PMT_COL</span> <span class="o">=</span> <span class="s1">&#39;PREM_PAYBL_Y&#39;</span>
+    <span class="n">MP_MTH_COL</span> <span class="o">=</span> <span class="s1">&#39;DURATIONIF_M&#39;</span>
+
+    <span class="n">_ALL_TABLES_</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="n">_BANDED_ATTRIBUTE</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;loc&#39;</span><span class="p">,</span> <span class="s1">&#39;iloc&#39;</span><span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tablename</span><span class="p">,</span> <span class="n">tabletype</span><span class="p">,</span> <span class="n">dataframe</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tablename</span> <span class="o">=</span> <span class="n">tablename</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tabletype</span> <span class="o">=</span> <span class="n">tabletype</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dataframe</span> <span class="o">=</span> <span class="n">dataframe</span>
+        <span class="k">if</span> <span class="n">cache</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">tabletype</span> <span class="o">!=</span> <span class="n">ProphetTableType</span><span class="o">.</span><span class="n">ModelPoint</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">tablename</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_TABLES_</span><span class="p">:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;tablename :</span><span class="si">{}</span><span class="s2"> all ready exists&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tablename</span><span class="p">),</span>
+                              <span class="ne">RuntimeWarning</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_TABLES_</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">tablename</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">__getattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_BANDED_ATTRIBUTE</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span>
+        <span class="n">rst</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dataframe</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rst</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rst</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">ProphetTable</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{}</span><span class="s2">.</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tablename</span><span class="p">,</span> <span class="n">name</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">tabletype</span><span class="p">,</span>
+                                <span class="n">rst</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">rst</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">rst</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataframe</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">item</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">rst</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataframe</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="n">item</span><span class="p">]</span>
+            <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;column selected from ProphetTable: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tablename</span><span class="p">),</span>
+                              <span class="ne">RuntimeWarning</span><span class="p">)</span>
+                <span class="n">rst</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dataframe</span><span class="p">[</span><span class="n">item</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rst</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rst</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">ProphetTable</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{}</span><span class="s2">[</span><span class="si">{}</span><span class="s2">]&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tablename</span><span class="p">,</span> <span class="n">item</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">tabletype</span><span class="p">,</span>
+                                <span class="n">rst</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">tabletype</span> <span class="o">==</span> <span class="n">ProphetTableType</span><span class="o">.</span><span class="n">TableOfTable</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rst</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> \
+                <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">plain_select</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ALL_TABLES_</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">rst</span><span class="p">,</span> <span class="n">rst</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">rst</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">clear_cache</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_ALL_TABLES_</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">translate_var_type</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">prophet_var_types</span><span class="p">:</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">get</span><span class="p">(</span><span class="n">prophet_var_types</span><span class="p">,</span> <span class="n">cls</span><span class="o">.</span><span class="n">PROPHET_NUMPY_VAR_MAP</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">guess_tablename</span><span class="p">(</span><span class="n">file</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">file</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">tablename</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">repr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dataframe</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">&quot;TABLE_NAME: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tablename</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span> \
+               <span class="s2">&quot;TABLE_TYPE: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tabletype</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span> \
+               <span class="o">+</span> <span class="nb">repr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dataframe</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">get_table</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">tablename</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">_ALL_TABLES_</span><span class="p">[</span><span class="n">tablename</span><span class="p">]</span>
+
+<div class="viewcode-block" id="ProphetTable.read_generic_table"><a class="viewcode-back" href="../../prophet.html#corona.prophet.ProphetTable.read_generic_table">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">read_generic_table</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">file</span><span class="p">,</span> <span class="n">tabletype</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">tablename</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Read file as *Prophet Generic Table*</span>
+
+<span class="sd">        :param Union[str, File] file: path to the file</span>
+<span class="sd">        :param Optional[str] tablename: if not provided name is guessed from `file`</span>
+<span class="sd">        :param Optional[ProphetTableType] tabletype: table type</span>
+<span class="sd">        :rtype: ProphetTable</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">tablename</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">tablename</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">guess_tablename</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+            <span class="n">lines</span> <span class="o">=</span> <span class="n">file</span><span class="o">.</span><span class="n">readlines</span><span class="p">()</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">p_rst</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">GenericTableParser</span><span class="o">.</span><span class="n">parseString</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">pp</span><span class="o">.</span><span class="n">ParseException</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="n">e</span>
+
+            <span class="n">table</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">parse_result2table</span><span class="p">(</span><span class="n">p_rst</span><span class="p">[</span><span class="s1">&#39;rows&#39;</span><span class="p">])</span>
+            <span class="n">col_names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">p_rst</span><span class="p">[</span><span class="s1">&#39;colNames&#39;</span><span class="p">])</span>
+            <span class="n">n_col</span> <span class="o">=</span> <span class="n">p_rst</span><span class="p">[</span><span class="s1">&#39;colNum&#39;</span><span class="p">]</span>
+            <span class="n">index_num</span> <span class="o">=</span> <span class="n">p_rst</span><span class="p">[</span><span class="s1">&#39;tblStartAt&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="mi">1</span>
+            <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">table</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">col_names</span><span class="p">)</span>
+            <span class="n">df</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="n">col_names</span><span class="p">[:</span><span class="n">index_num</span><span class="p">],</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="n">df</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">n_col</span><span class="p">,</span> <span class="s2">&quot;column missing&quot;</span>
+            <span class="k">return</span> <span class="n">cls</span><span class="p">(</span><span class="n">tablename</span><span class="p">,</span> <span class="n">tabletype</span><span class="p">,</span> <span class="n">df</span><span class="p">)</span></div>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">parse_result2table</span><span class="p">(</span><span class="n">p_rst</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">((</span><span class="nb">list</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">p_rst</span><span class="p">))</span>
+
+<div class="viewcode-block" id="ProphetTable.read_modelpoint_table"><a class="viewcode-back" href="../../prophet.html#corona.prophet.ProphetTable.read_modelpoint_table">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">read_modelpoint_table</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">file</span><span class="p">,</span> <span class="n">tablename</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Read file as *Prophet ModelPoint Table*</span>
+
+<span class="sd">        :param Union[str, File] file: path to the file</span>
+<span class="sd">        :param Optional[str] tablename: if not provided name is guessed from `file`</span>
+<span class="sd">        :rtype: ProphetTable</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">tablename</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">tablename</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">guess_tablename</span><span class="p">(</span><span class="n">file</span><span class="p">)</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+            <span class="n">lines</span> <span class="o">=</span> <span class="n">file</span><span class="o">.</span><span class="n">readlines</span><span class="p">()</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+            <span class="n">p_rst</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">ModelPointTableParser</span><span class="o">.</span><span class="n">parseString</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+            <span class="n">table</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">parse_result2table</span><span class="p">(</span><span class="n">p_rst</span><span class="p">[</span><span class="s1">&#39;rows&#39;</span><span class="p">])</span>
+            <span class="n">column_names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">p_rst</span><span class="p">[</span><span class="s1">&#39;colNames&#39;</span><span class="p">])</span>
+            <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">table</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="n">column_names</span><span class="p">)</span>
+            <span class="n">dtypes</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">translate_var_type</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">p_rst</span><span class="p">[</span><span class="s1">&#39;varTypes&#39;</span><span class="p">]))</span>
+            <span class="n">df</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">column_names</span><span class="p">,</span> <span class="n">dtypes</span><span class="p">)),</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">df</span><span class="o">.</span><span class="n">set_index</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">MP_BATCH_COL</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">origin_row_num</span><span class="p">,</span> <span class="n">real_row_num</span> <span class="o">=</span> <span class="n">p_rst</span><span class="p">[</span><span class="s1">&#39;rowNum&#39;</span><span class="p">],</span> <span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="n">real_row_num</span> <span class="o">==</span> <span class="n">origin_row_num</span><span class="p">,</span>\
+                <span class="s2">&quot;The table should have </span><span class="si">{}</span><span class="s2"> points but </span><span class="si">{}</span><span class="s2"> points are read&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">origin_row_num</span><span class="p">,</span> <span class="n">real_row_num</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">cls</span><span class="p">(</span><span class="n">tablename</span><span class="p">,</span> <span class="n">ProphetTableType</span><span class="o">.</span><span class="n">ModelPoint</span><span class="p">,</span> <span class="n">df</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ProphetTable.read_parameter_table"><a class="viewcode-back" href="../../prophet.html#corona.prophet.ProphetTable.read_parameter_table">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">read_parameter_table</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">file</span><span class="p">,</span> <span class="n">tablename</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A simple reader of *Prophet Parameter Table*</span>
+
+<span class="sd">        :param Union[str, File] file: path to the file</span>
+<span class="sd">        :param Optional[str] tablename: if not provided name is guessed from `file`</span>
+<span class="sd">        :rtype: ProphetTable</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">read_generic_table</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">ProphetTableType</span><span class="o">.</span><span class="n">Parameter</span><span class="p">,</span> <span class="n">tablename</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ProphetTable.read_table_of_table"><a class="viewcode-back" href="../../prophet.html#corona.prophet.ProphetTable.read_table_of_table">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">read_table_of_table</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">file</span><span class="p">,</span> <span class="n">tablename</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A simple reader of *Prophet TableOfTable*</span>
+
+<span class="sd">        :param Union[str, File] file: path to the file</span>
+<span class="sd">        :param Optional[str] tablename: if not provided name is guessed from `file`</span>
+<span class="sd">        :rtype: ProphetTable</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">read_generic_table</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">ProphetTableType</span><span class="o">.</span><span class="n">TableOfTable</span><span class="p">,</span> <span class="n">tablename</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ProphetTable.read_probability_table"><a class="viewcode-back" href="../../prophet.html#corona.prophet.ProphetTable.read_probability_table">[docs]</a>    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">read_probability_table</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">m_file</span><span class="p">,</span> <span class="n">f_file</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tablename</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Read as Probability Table</span>
+
+<span class="sd">        :param m_file: path of file of probability of male.</span>
+<span class="sd">        :param f_file:  path of file of probability of female, Default: `m_file`</span>
+<span class="sd">        :param tablename: Default: if f_file is not None, then the largest common sub string</span>
+<span class="sd">            is used as tablename else guessed from `m_file`.</span>
+<span class="sd">        :rtype: ProphetTable</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">tablename</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">m_tablename</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">guess_tablename</span><span class="p">(</span><span class="n">m_file</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">f_file</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="kn">from</span> <span class="nn">difflib</span> <span class="k">import</span> <span class="n">SequenceMatcher</span>
+                <span class="n">f_tablename</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">guess_tablename</span><span class="p">(</span><span class="n">f_file</span><span class="p">)</span>
+                <span class="n">match</span> <span class="o">=</span> <span class="n">SequenceMatcher</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">m_tablename</span><span class="p">,</span> <span class="n">f_tablename</span><span class="p">)</span>\
+                    <span class="o">.</span><span class="n">find_longest_match</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">m_tablename</span><span class="p">),</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">f_tablename</span><span class="p">))</span>
+                <span class="n">tablename</span> <span class="o">=</span> <span class="n">m_tablename</span><span class="p">[</span><span class="n">match</span><span class="o">.</span><span class="n">a</span><span class="p">:</span> <span class="n">match</span><span class="o">.</span><span class="n">a</span> <span class="o">+</span> <span class="n">match</span><span class="o">.</span><span class="n">size</span><span class="p">]</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">)</span>
+                <span class="k">assert</span> <span class="n">tablename</span><span class="p">,</span> <span class="s2">&quot;it seems file names can&#39;t match&quot;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">tablename</span> <span class="o">=</span> <span class="n">m_tablename</span>
+
+        <span class="k">def</span> <span class="nf">read_array</span><span class="p">(</span><span class="n">file</span><span class="p">):</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file</span><span class="p">:</span>
+                <span class="n">lines</span> <span class="o">=</span> <span class="n">file</span><span class="o">.</span><span class="n">readlines</span><span class="p">()</span>
+                <span class="n">s</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+                <span class="n">p_rst</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">ProbabilityTableParser</span><span class="o">.</span><span class="n">parseString</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+                <span class="n">table_</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">parse_result2table</span><span class="p">(</span><span class="n">p_rst</span><span class="p">[</span><span class="s1">&#39;rows&#39;</span><span class="p">])</span>
+                <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">table_</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+
+        <span class="n">m_table</span> <span class="o">=</span> <span class="n">read_array</span><span class="p">(</span><span class="n">m_file</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">f_file</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">f_table</span> <span class="o">=</span> <span class="n">read_array</span><span class="p">(</span><span class="n">f_file</span><span class="p">)</span>
+            <span class="n">table</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">((</span><span class="n">m_table</span><span class="p">,</span> <span class="n">f_table</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">table</span> <span class="o">=</span> <span class="n">m_table</span>
+        <span class="k">if</span> <span class="n">table</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">table</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">table</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span><span class="p">,</span>\
+                <span class="s2">&quot;currently fac file with more than one rate column is not supported&quot;</span>
+
+        <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">table</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;m&#39;</span><span class="p">,</span> <span class="s1">&#39;f&#39;</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="p">(</span><span class="n">tablename</span><span class="p">,</span> <span class="n">ProphetTableType</span><span class="o">.</span><span class="n">Probability</span><span class="p">,</span> <span class="n">df</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ProphetTable.as_modelpoint"><a class="viewcode-back" href="../../prophet.html#corona.prophet.ProphetTable.as_modelpoint">[docs]</a>    <span class="k">def</span> <span class="nf">as_modelpoint</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">klass</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="n">args_of_klass</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs_of_klass</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Convert model point table to model point data set, the result is an instance of klass</span>
+
+<span class="sd">        :param klass: class of the data set result, Default :class:`~corona.mp.ModelPointSet`</span>
+<span class="sd">        :param args_of_klass: additional position arguments provided to `klass`</span>
+<span class="sd">        :param kwargs_of_klass: additional key word arguments provided to `klass`</span>
+<span class="sd">        :return: model point data set</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">tabletype</span> <span class="o">==</span> <span class="n">ProphetTableType</span><span class="o">.</span><span class="n">ModelPoint</span><span class="p">,</span>\
+            <span class="s2">&quot;Only Model Point Table can be convert to ModelPointDataSet&quot;</span>
+        <span class="kn">from</span> <span class="nn">corona.mp</span> <span class="k">import</span> <span class="n">ModelPointSet</span>
+        <span class="k">if</span> <span class="n">klass</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">klass</span> <span class="o">=</span> <span class="n">ModelPointSet</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">klass</span><span class="p">,</span> <span class="n">ModelPointSet</span><span class="p">):</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{}</span><span class="s2"> is not subclass of </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">klass</span><span class="p">,</span> <span class="n">ModelPointSet</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">klass</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dataframe</span><span class="p">,</span> <span class="o">*</span><span class="n">args_of_klass</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs_of_klass</span><span class="p">)</span></div>
+
+    <span class="c1"># noinspection PyArgumentList</span>
+<div class="viewcode-block" id="ProphetTable.as_probability"><a class="viewcode-back" href="../../prophet.html#corona.prophet.ProphetTable.as_probability">[docs]</a>    <span class="k">def</span> <span class="nf">as_probability</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">kx</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">klass</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="n">args_of_klass</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs_of_klass</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Convert probability table to Probability, the result is an instance of klass.</span>
+
+<span class="sd">        :param klass: class of result, default :class:`~corona.core.prob.Probability`</span>
+<span class="sd">        :param Union[str, ProphetTable, list, ndarray] kx: for detail see default of `klass`</span>
+<span class="sd">        :param args_of_klass: additional position arguments provided to `klass`</span>
+<span class="sd">        :param kwargs_of_klass: additional key word arguments provided to `klass`</span>
+<span class="sd">        :return: probability</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">tabletype</span> <span class="o">==</span> <span class="n">ProphetTableType</span><span class="o">.</span><span class="n">Probability</span><span class="p">,</span> \
+            <span class="s2">&quot;Only Probability Table can be convert to Probability&quot;</span>
+        <span class="n">qx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">T</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">kx</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">kx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_table</span><span class="p">(</span><span class="n">kx</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="n">kx</span><span class="o">.</span><span class="n">tabletype</span> <span class="o">==</span> <span class="n">ProphetTableType</span><span class="o">.</span><span class="n">ModelPoint</span><span class="p">,</span>\
+                <span class="s2">&quot;Only Model Point Table can be convert to kx&quot;</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">kx</span><span class="p">,</span> <span class="n">ProphetTable</span><span class="p">):</span>
+            <span class="n">kx</span> <span class="o">=</span> <span class="n">kx</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">T</span>
+
+        <span class="kn">from</span> <span class="nn">corona.core.prob</span> <span class="k">import</span> <span class="n">Probability</span>
+        <span class="k">if</span> <span class="n">klass</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">klass</span> <span class="o">=</span> <span class="n">Probability</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">klass</span><span class="p">,</span> <span class="n">Probability</span><span class="p">):</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{}</span><span class="s2"> is not subclass of </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">klass</span><span class="p">,</span> <span class="n">Probability</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">klass</span><span class="p">(</span><span class="n">qx</span><span class="p">,</span> <span class="n">kx</span><span class="p">,</span> <span class="o">*</span><span class="n">args_of_klass</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tablename</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs_of_klass</span><span class="p">)</span></div>
+
+    <span class="c1"># noinspection PyArgumentList</span>
+<div class="viewcode-block" id="ProphetTable.as_selection_factor"><a class="viewcode-back" href="../../prophet.html#corona.prophet.ProphetTable.as_selection_factor">[docs]</a>    <span class="k">def</span> <span class="nf">as_selection_factor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">klass</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="n">args_of_klass</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs_of_klass</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Convert probability table to Selection Factor, the result is an instance of klass.</span>
+
+<span class="sd">        :param klass: class of result, default :class:`~corona.core.prob.SelectionFactor`</span>
+<span class="sd">        :param args_of_klass: additional position arguments provided to `klass`</span>
+<span class="sd">        :param kwargs_of_klass: additional key word arguments provided to `klass`</span>
+<span class="sd">        :return: probability</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">tabletype</span> <span class="ow">in</span> <span class="p">[</span><span class="n">ProphetTableType</span><span class="o">.</span><span class="n">Probability</span><span class="p">,</span> <span class="n">ProphetTableType</span><span class="o">.</span><span class="n">GenericTable</span><span class="p">],</span> \
+            <span class="s2">&quot;Only Probability Table can be convert to SelectionFactor&quot;</span>
+        <span class="n">fac</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">T</span>
+        <span class="kn">from</span> <span class="nn">corona.core.prob</span> <span class="k">import</span> <span class="n">SelectionFactor</span>
+        <span class="k">if</span> <span class="n">klass</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">klass</span> <span class="o">=</span> <span class="n">SelectionFactor</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">klass</span><span class="p">,</span> <span class="n">SelectionFactor</span><span class="p">):</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{}</span><span class="s2"> is not subclass of </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">klass</span><span class="p">,</span> <span class="n">SelectionFactor</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">klass</span><span class="p">(</span><span class="n">fac</span><span class="p">,</span> <span class="o">*</span><span class="n">args_of_klass</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">tablename</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs_of_klass</span><span class="p">)</span></div></div>
+
+
+<span class="n">read_generic_table</span> <span class="o">=</span> <span class="n">ProphetTable</span><span class="o">.</span><span class="n">read_generic_table</span>
+<span class="n">read_parameter_table</span> <span class="o">=</span> <span class="n">ProphetTable</span><span class="o">.</span><span class="n">read_parameter_table</span>
+<span class="n">read_probability_table</span> <span class="o">=</span> <span class="n">ProphetTable</span><span class="o">.</span><span class="n">read_probability_table</span>
+<span class="n">read_modelpoint_table</span> <span class="o">=</span> <span class="n">ProphetTable</span><span class="o">.</span><span class="n">read_modelpoint_table</span>
+<span class="n">read_table_of_table</span> <span class="o">=</span> <span class="n">ProphetTable</span><span class="o">.</span><span class="n">read_table_of_table</span>
+
+
+<div class="viewcode-block" id="read_assumption_tables"><a class="viewcode-back" href="../../prophet.html#corona.prophet.read_assumption_tables">[docs]</a><span class="k">def</span> <span class="nf">read_assumption_tables</span><span class="p">(</span><span class="n">folder</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">tot_pattern</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                           <span class="n">param_pattern</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">prob_folder</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                           <span class="n">exclude_folder</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                           <span class="n">exclude_pattern</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">clear_cache</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Read All tables in folder. First exclude_folder and exclude_pattern are</span>
+<span class="sd">    used to test if the table should be ignored, then prob_folder is used to</span>
+<span class="sd">    test if the table should be read as probability table, at last tot_pattern is</span>
+<span class="sd">    used to test if table should be read as a table of tables.</span>
+<span class="sd">    If all tests failed, the table will be read as a generic table.</span>
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">        Links are treated as folders, it can lead to infinite recursion if a link points to a parent directory of itself</span>
+
+
+<span class="sd">    &gt;&gt;&gt; read_assumption_tables(&quot;./TABLES&quot;, prob_folder=&#39;MORT&#39;,</span>
+<span class="sd">    ...                        param_pattern=r&#39;PARAMET_.+&#39;,</span>
+<span class="sd">    ...                        tot_pattern=&#39;GLOBAL|.*_TABLE_CONFIG&#39;,</span>
+<span class="sd">    ...                        exclude_folder=&#39;CROSS_LASTVAL&#39;,</span>
+<span class="sd">    ...                        exclude_pattern=&#39;PRICING_AGE_TBL&#39;,</span>
+<span class="sd">    ...                        clear_cache=True)</span>
+
+<span class="sd">    :param str folder: path of the folder</span>
+<span class="sd">    :param str tot_pattern: regular expression of tablename of table of tables</span>
+<span class="sd">    :param str param_pattern: regular expression of tablename of parameter table</span>
+<span class="sd">    :param str prob_folder:  name(not path) of sub folder in which all tables are</span>
+<span class="sd">        recognized as probability table</span>
+<span class="sd">    :param str exclude_folder: name(not path) of sub folder in which all tables are</span>
+<span class="sd">        ignored</span>
+<span class="sd">    :param str exclude_pattern: regular expression of table name that should be ignored</span>
+<span class="sd">    :param bool clear_cache: if True cached tables before reading, default False</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span> <span class="nn">re</span><span class="o">,</span> <span class="nn">os</span>
+    <span class="n">get_name</span> <span class="o">=</span> <span class="n">ProphetTable</span><span class="o">.</span><span class="n">guess_tablename</span>
+
+    <span class="k">if</span> <span class="n">clear_cache</span><span class="p">:</span>
+        <span class="n">ProphetTable</span><span class="o">.</span><span class="n">clear_cache</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">compile_re</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">_p</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+            <span class="k">return</span> <span class="k">lambda</span> <span class="n">file</span><span class="p">:</span> <span class="n">_p</span><span class="o">.</span><span class="n">fullmatch</span><span class="p">(</span><span class="n">get_name</span><span class="p">(</span><span class="n">file</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="n">p</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="k">lambda</span> <span class="n">_</span><span class="p">:</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+
+    <span class="n">tot_pattern</span> <span class="o">=</span> <span class="n">compile_re</span><span class="p">(</span><span class="n">tot_pattern</span><span class="p">)</span>
+    <span class="n">param_pattern</span> <span class="o">=</span> <span class="n">compile_re</span><span class="p">(</span><span class="n">param_pattern</span><span class="p">)</span>
+    <span class="n">exclude_pattern</span> <span class="o">=</span> <span class="n">compile_re</span><span class="p">(</span><span class="n">exclude_pattern</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">prob_folder</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">prob_folder</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">_</span><span class="p">:</span> <span class="kc">False</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">prob_folder</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">pathlib</span> <span class="k">import</span> <span class="n">Path</span>
+        <span class="n">_f</span> <span class="o">=</span> <span class="n">prob_folder</span>
+        <span class="n">prob_folder</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">_f</span> <span class="ow">in</span> <span class="n">Path</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="o">.</span><span class="n">parts</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">prob_folder</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">exclude_folder</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">exclude_folder</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">_</span><span class="p">:</span> <span class="kc">False</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exclude_folder</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">pathlib</span> <span class="k">import</span> <span class="n">Path</span>
+        <span class="n">_e</span> <span class="o">=</span> <span class="n">exclude_folder</span>
+        <span class="n">exclude_folder</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">_e</span> <span class="ow">in</span> <span class="n">Path</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="o">.</span><span class="n">parts</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">exclude_folder</span><span class="p">)</span>
+
+    <span class="n">rst</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;prob&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="s1">&#39;tot&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="s1">&#39;param&#39;</span><span class="p">:</span> <span class="p">[],</span>
+        <span class="s1">&#39;gen&#39;</span><span class="p">:</span> <span class="p">[]</span>
+    <span class="p">}</span>
+
+    <span class="k">for</span> <span class="n">root</span><span class="p">,</span> <span class="n">dirs</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">walk</span><span class="p">(</span><span class="n">folder</span><span class="p">,</span> <span class="n">followlinks</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="p">:</span>
+            <span class="n">f</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">f</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">exclude_pattern</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="k">elif</span> <span class="n">exclude_folder</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="k">elif</span> <span class="n">prob_folder</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+                <span class="n">rst</span><span class="p">[</span><span class="s1">&#39;prob&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">read_probability_table</span><span class="p">(</span><span class="n">f</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">param_pattern</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+                <span class="n">rst</span><span class="p">[</span><span class="s1">&#39;param&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">read_parameter_table</span><span class="p">(</span><span class="n">f</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">tot_pattern</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+                <span class="n">rst</span><span class="p">[</span><span class="s1">&#39;tot&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">read_table_of_table</span><span class="p">(</span><span class="n">f</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">rst</span><span class="p">[</span><span class="s1">&#39;gen&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">read_generic_table</span><span class="p">(</span><span class="n">f</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">rst</span></div>
+
+
+<div class="viewcode-block" id="prlife_read"><a class="viewcode-back" href="../../prophet.html#corona.prophet.prlife_read">[docs]</a><span class="k">def</span> <span class="nf">prlife_read</span><span class="p">(</span><span class="n">folder</span><span class="p">,</span> <span class="n">clear_cache</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Read All Pear River Life Assumption tables in folder</span>
+
+<span class="sd">    &gt;&gt;&gt; prlife_read(&#39;./TABLES&#39;)</span>
+
+<span class="sd">    :param str folder: path of the folder</span>
+<span class="sd">    :param bool clear_cache: if True, all cached tables before reading default True</span>
+<span class="sd">    :return: dict of tables with tablename as key</span>
+<span class="sd">    :rtype: dict</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">read_assumption_tables</span><span class="p">(</span><span class="n">folder</span><span class="p">,</span> <span class="n">prob_folder</span><span class="o">=</span><span class="s1">&#39;MORT&#39;</span><span class="p">,</span>
+                                  <span class="n">param_pattern</span><span class="o">=</span><span class="s1">r&#39;PARAMET_.+&#39;</span><span class="p">,</span>
+                                  <span class="n">tot_pattern</span><span class="o">=</span><span class="s1">&#39;GLOBAL|.*_TABLE_CONFIG&#39;</span><span class="p">,</span>
+                                  <span class="n">exclude_folder</span><span class="o">=</span><span class="s1">&#39;CROSS_LASTVAL&#39;</span><span class="p">,</span>
+                                  <span class="n">exclude_pattern</span><span class="o">=</span><span class="s1">&#39;PRICING_AGE_TBL&#39;</span><span class="p">,</span>
+                                  <span class="n">clear_cache</span><span class="o">=</span><span class="n">clear_cache</span><span class="p">)</span></div>
+</pre></div>
+
+           </div>
+           <div class="articleComments">
+            
+           </div>
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2018, riesz.
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/snide/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  
+
+    <script type="text/javascript">
+        var DOCUMENTATION_OPTIONS = {
+            URL_ROOT:'../../',
+            VERSION:'0.1a1',
+            COLLAPSE_INDEX:false,
+            FILE_SUFFIX:'.html',
+            HAS_SOURCE:  true,
+            SOURCELINK_SUFFIX: '.txt'
+        };
+    </script>
+      <script type="text/javascript" src="../../_static/jquery.js"></script>
+      <script type="text/javascript" src="../../_static/underscore.js"></script>
+      <script type="text/javascript" src="../../_static/doctools.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
+  
+
+  
+  
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+  
+
+  
+  
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.StickyNav.enable();
+      });
+  </script>
+   
+
+</body>
+</html>
