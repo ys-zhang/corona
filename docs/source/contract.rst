@@ -3,6 +3,7 @@ Contract
 
 
 .. automodule:: corona.core.contract
+    :show-inheritance:
 
 .. py:currentmodule:: corona.core.contract
 
@@ -32,6 +33,7 @@ Clause Group
     :members:
 
 .. autoclass:: ParallelGroup
+    :show-inheritance:
     :members:
 
 .. autoclass:: SequentialGroup
