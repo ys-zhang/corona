@@ -5,6 +5,7 @@ Use `Table` for lookup input are exactly the row number of the table, else use
 `LookupTable`.
 """
 import weakref
+from typing import Union
 import torch
 from torch.nn import Module, Parameter
 from torch import Tensor
@@ -100,8 +101,8 @@ class LookupTable(Table):
 
     .. math::
 
-        \text{out}_{i, j} =
-            \text{table}_{\text{index_table}[\text{lookup}], j}
+         \text{out}_{i, j} =
+            \text{table}_{\text{index_table}[\text{lookup}], \;  j} 
 
     instances will be kept in a WeakValueDict, with their names as keys.
 

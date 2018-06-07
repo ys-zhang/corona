@@ -1,9 +1,3 @@
-"""
-Models of Probability
-
-`Probability`, `SelectionFactor`
-
-"""
 import torch
 from torch import Tensor
 from torch.nn import Module, Parameter

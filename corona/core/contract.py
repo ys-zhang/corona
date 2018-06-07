@@ -14,36 +14,38 @@ involving cash flow (e.g. benefits, fees etc.)
         2 times of premium payed will be payed
         in case the insurant dead within the policy term
 
-usually 3 kind of critical information related to calculation is provided:
+usually 3 kind of critical information is required by common actuarial calculation:
 
 #. the claim of this benefit is proportional to `SA`,
    which is contained in the model point,
 #. the ratio equals to 2 in all cases,
-#. the probability bundled to this clause can only be death probabilities.
+#. the probability attached to this clause can only be death probabilities.
 
 We bundle all these information defines a clause in a contract
 into a single instance of class `Clause`:
 
-#. Base selection and transformation
+#. base
     the value property of modelpoint (may transformed) like *sum assured*,
-    *account value* or *gross premium*, two kind of parameters can be supplied:
-
-    * base_control_param
-    * base_converter
+    *account value* or *gross premium*.
 #. ratio_table
     the ratio_table is a instance of
-    :class:`corona.table.Table` in case the ratio varies w.r.t.
-    payment term or issue age.
-    Three classes :class:`corona.table.PmtLookupTable`,
-    :class:`corona.table.AgeIndexedTable`
-    and :class:`corona.table.PmtAgeLookupTable` can be used in different cases.
+    :class:`~corona.table.Table` in case the ratio varies w.r.t.
+    payment term or issue age.s
+    Three classes :class:`~corona.table.PmtLookupTable`,
+    :class:`~corona.table.AgeIndexedTable`
+    and :class:`~corona.table.PmtAgeLookupTable` can be used in different cases.
+    When the clause represent the credit cashflow of the linked Account of a Universal
+    Link product. A instance of Credit Strategy can supplied as a ratio table. 
+    See module :mod:`~corona.core.creditstrat` for detail.
+
 #. probs
     probability bundle.
 
 but only these are not enough for calculation, For Example we have such cases:
 
     #. The contract may remains effective after the clause is triggered
-    #. Different probabilities are used in valuations with different purposes.
+    #. Different probabilities are used in valuations for different purposes.
+    #. 
 
 
 additional control parameters and some middle layers should be supplied to
@@ -62,13 +64,23 @@ support these cases.
     probability not included in the param `probs`.
 
     .. note::
-        *Contexts* are used when the calculation related to different kind of
-        settings of assumptions. You should provide a context
-        for most assumption related classes,
-        for example :class:`corona.core.discount.DiscountLayer` and
-        :class:`corona.core.prob.SelectionFactor`
+        **What is a context?**
 
-        Examples of Contests: PRICING, GAAP, CROSS, etc.
+        *Context* is a central concept in `corona`. It is widely used when your model has to base on different kinds of
+        package of assumptions. 
+        
+        Typical contexts are *PRICING*, *GAAP*, *CROSS*, etc.
+
+        When we refer to *dicount rate* or *probability* in the *PRICING* context, we mean
+        the discount rate and probabilities used in calculating the *gross premium* and *cash value*.
+
+        Whats more, in different contexts, a cash flow may alse have different meanings. For example, within the *GAAP* context,
+        cashflows come from the linked account of a product whose design type is Universal is 0. Another case
+        is the credit rate. When we test how our company will be like under different 
+
+#. mth_converter
+
+
 
 Clause Group
 ^^^^^^^^^^^^
@@ -268,7 +280,7 @@ class ChangeAccountValue(SideEffect):
 
 
 class DirtyClause(Clause):
-    """A Clause that is impure or have side effects
+    """A Clause that is impure and has side effects
     """
     def __init__(self, *args, side_effect, **kwargs):
         super().__init__(*args, **kwargs)
@@ -289,7 +301,8 @@ class AClause(DirtyClause):
 
 
 class ClauseGroup(ModuleDict):
-
+    """ Base of all Clause containers
+    """
     def __init__(self, *clause, name=None, **kwargs):
         """
         :param clause: list of clause like objects including Clause,
@@ -304,18 +317,29 @@ class ClauseGroup(ModuleDict):
             self.name = name
 
     def clauses(self):
+        """Clauses contained directly in this group.
+        """
         return filter(lambda md: isinstance(md, Clause), self.children())
 
     def named_clauses(self)->dict:
+        """Dict of clauses contained directly in this group with name as key.
+        """
         return valfilter(lambda md: isinstance(md, Clause), dict(self.named_children()))
 
     def clause_groups(self):
+        """Subgroup of clauses contained directly in this group.
+        """
         return filter(lambda md: isinstance(md, ClauseGroup), self.children())
 
     def named_clause_groups(self)->dict:
+        """Dict of subgroup of clauses contained directly in this group with name as key.
+        """
         return valfilter(lambda md: isinstance(md, ClauseGroup), self.named_children())
 
     def search_clause(self, name):
+        """Get clause by name. It will search among all claused contained in this group,
+        including those contained by sub groups
+        """
         named_clauses = self.named_clauses()
         if name in named_clauses:
             return named_clauses[name]
@@ -328,6 +352,8 @@ class ClauseGroup(ModuleDict):
             raise KeyError("can't find clause with name: {}".format(name))
 
     def all_clauses(self):
+        """iterator of all clauses contained in this group.
+        """
         for cl in self.children():
             if isinstance(cl, Clause):
                 yield cl
@@ -370,13 +396,14 @@ class ParallelGroup(ClauseGroup):
 
 class SequentialGroup(ClauseGroup):
     r""" A container define a list of "Clause" like objects with the order plays
-    a critical role in calculation. The probability of the whole
-    group is calculated using a copula function.
+    a critical role in calculation. 
+    
+    The probability of the joint distribution at each time is calculated using a copula function.
 
     the default copula:
 
     .. math::
-         \text{output}_i = \Pi_{k=0}^{i-1}(1 - \text{prob}_k)
+         \text{px}_i = \Pi_{k=0}^{i-1}(1 - \text{prob}_k)
 
     .. note::
        The probabilities of each clause

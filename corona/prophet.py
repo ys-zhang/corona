@@ -12,7 +12,7 @@ For now 5 kinds of Prophet Tables are supported:
     #.  `Probability`
     #.  `TableOfTable`
 
-and functions are provided to help user read tables by path:
+and 5 functions are provided to help user read tables by path:
     #.  `read_generic_table`
     #.  `read_modelpoint_table`
     #.  `read_parameter_table`
@@ -20,8 +20,8 @@ and functions are provided to help user read tables by path:
     #.  `read_table_of_table`
 
 A `ProphetTable` is just like a pandas DataFrame, except that:
-    #. `[]` can select both row and column, but **we strongly recommend only use it only to select rows**.
-       At this version, a warn will be throw out if a column is returned.
+    #. `[]` can select both row and column, but **we strongly recommend only use it when selecting rows**.
+       At this version, a warn will be thrown out if a column is selected and returned.
     #. Dot expression can be used to select column just like a DataFrame, for example `GLOBAL.RUN_99`
        is column "RUN_99" of table "GLOBAL". **We strongly recommend you to use the dot expression only to select columns**.
     #. Unlike `DataFrame`, there is not `loc` or `iloc` in a `ProphetTable`
@@ -31,9 +31,9 @@ A `ProphetTable` is just like a pandas DataFrame, except that:
 
     .. note::
 
-            When `[]` is triggered,  first a function like `DataFrame.loc` is tried,
-            then a function like `DataFrame.iloc[]` is tried and at last the semantics
-            of `[]` in `pandas.DataFrame` is tried. If all these failed a KeyError is
+            When `[]` is triggered,  first a function like :attr:`DataFrame.loc` is tried,
+            then a function like :attr:`DataFrame.iloc` is tried and at last the semantics
+            of `[]` in :class:`pandas.DataFrame` is tried. If all these failed a KeyError is
             raised.
 
 
@@ -42,12 +42,12 @@ Example
 
 .. code::
 
-    prlife_reader("./Tables")
+    prlife_read("./Tables")
     GLOBAL = ProphetTable.get_table('GLOBAL')  # global table is a Table of Table
     GLOBAL.T # transpose the table
     RUN13 = GLOBAL.RUN_13 # run 13 configeration, good style
     RUN13 == GLOBAL['RUN_13'] # True, but bad style
-    CNG_TABLE_CONFIG_TBL = GLOBAL.RUN_13['CNG_TABLE_CONFIG_TBL'] # returns CNG_TABLE_CONFIG_TBL itself of run 13 not the table naem
+    CNG_TABLE_CONFIG_TBL = GLOBAL.RUN_13['CNG_TABLE_CONFIG_TBL'] # returns CNG_TABLE_CONFIG_TBL itself of run 13 not the table name
     CNG_TABLE_CONFIG_TBL == GLOBAL['CNG_TABLE_CONFIG_TBL', 'RUN_13'] # True, good style
 
     # CNG_TABLE_CONFIG_TBL itself is a TableOfTable thus use can keep selecting like a chain
@@ -68,7 +68,7 @@ import warnings
 
 __all__ = ['ProphetTable', 'read_generic_table', 'read_parameter_table',
            'read_probability_table', 'read_modelpoint_table',
-           'read_table_of_table', 'read_assumption_tables', 'prlife_reader']
+           'read_table_of_table', 'read_assumption_tables', 'prlife_read']
 
 
 # ===================== Prophet Fac Table Reading ============================
@@ -351,7 +351,7 @@ class ProphetTable:
     def as_modelpoint(self, klass=None, *args_of_klass, **kwargs_of_klass):
         """Convert model point table to model point data set, the result is an instance of klass
 
-        :param klass: class of the data set result
+        :param klass: class of the data set result, Default :class:`~corona.mp.ModelPointSet`
         :param args_of_klass: additional position arguments provided to `klass`
         :param kwargs_of_klass: additional key word arguments provided to `klass`
         :return: model point data set
@@ -370,8 +370,8 @@ class ProphetTable:
     def as_probability(self, kx=None, klass=None, *args_of_klass, **kwargs_of_klass):
         """Convert probability table to Probability, the result is an instance of klass.
 
-        :param klass: class of result, default :class:`corona.core.prob.Probability`
-        :param Union['str', ProphetTable, list, ndarray] kx: for detail see default of `klass`
+        :param klass: class of result, default :class:`~corona.core.prob.Probability`
+        :param Union[str, ProphetTable, list, ndarray] kx: for detail see default of `klass`
         :param args_of_klass: additional position arguments provided to `klass`
         :param kwargs_of_klass: additional key word arguments provided to `klass`
         :return: probability
@@ -401,7 +401,7 @@ class ProphetTable:
     def as_selection_factor(self, klass=None, *args_of_klass, **kwargs_of_klass):
         """Convert probability table to Selection Factor, the result is an instance of klass.
 
-        :param klass: class of result, default :class:`corona.core.prob.SelectionFactor`
+        :param klass: class of result, default :class:`~corona.core.prob.SelectionFactor`
         :param args_of_klass: additional position arguments provided to `klass`
         :param kwargs_of_klass: additional key word arguments provided to `klass`
         :return: probability
@@ -417,8 +417,6 @@ class ProphetTable:
                 warnings.warn("{} is not subclass of {}".format(klass, SelectionFactor))
 
         return klass(fac, *args_of_klass, name=self.tablename, **kwargs_of_klass)
-
-
 
 
 read_generic_table = ProphetTable.read_generic_table
@@ -458,7 +456,7 @@ def read_assumption_tables(folder, *, tot_pattern=None,
     :param str exclude_folder: name(not path) of sub folder in which all tables are
         ignored
     :param str exclude_pattern: regular expression of table name that should be ignored
-    :param bool clear_cache: if clear cached tables before reading, default False
+    :param bool clear_cache: if True cached tables before reading, default False
     """
     import re, os
     get_name = ProphetTable.guess_tablename
@@ -523,13 +521,13 @@ def read_assumption_tables(folder, *, tot_pattern=None,
     return rst
 
 
-def prlife_reader(folder, clear_cache=True):
-    """ Read All Assumption tables in folder
+def prlife_read(folder, clear_cache=True):
+    """ Read All Pear River Life Assumption tables in folder
 
-    >>> prlife_reader('./TABLES')
+    >>> prlife_read('./TABLES')
 
-    :param folder:
-    :param bool clear_cache: if clear all cached tables before reading default True
+    :param str folder: path of the folder
+    :param bool clear_cache: if True, all cached tables before reading default True
     :return: dict of tables with tablename as key
     :rtype: dict
     """

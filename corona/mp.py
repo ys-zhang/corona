@@ -1,4 +1,5 @@
-"""ModelPoint
+"""This model provide an api compatible to Pytorch DataSet， 
+for details of the DataSet and Transforms in Pytorch, see `This Tutorial <https://pytorch.org/tutorials/beginner/data_loading_tutorial.html>`_ 
 
 """
 from torch.utils.data import Dataset, DataLoader
@@ -51,10 +52,12 @@ class ModelPointSet(Dataset):
 
     @classmethod
     def idx_order(cls):
+        """override this function to define the order of index names in `mp_idx` """
         return cls._INDEX_ORDER
 
     @classmethod
     def val_order(cls):
+        """override this function to define the order of value names in `mp_val`"""
         return cls._VALUE_ORDER
 
     def __init__(self, dataframe: pd.DataFrame, transform=None):
@@ -96,14 +99,27 @@ class ModelPointSet(Dataset):
 
     @property
     def sp_code_batch_sampler(self):
+        """A :class:`BatchSampler` samples in level of *sp_code* or *subproduct* 
+        """
         return BatchSamplerFromIndex(self)
 
     def data_loader(self, **kwargs):
+        """Returns a :class:`DataLoader` of the dataset using :meth:`~ModelPointSet.sp_code_batch_sampler`
+        with kwargs provided as additional arguments.
+        """
         return DataLoader(self, batch_sampler=self.sp_code_batch_sampler, **kwargs)
 
 
 class ToNewBusiness:
-    """ Transform to mp represent new business """
+    """Transform to mp represent new business. policy month set to zero, and
+    reset account value to gross premium.
+
+    Args:
+        - mth_idx: the index of mp_idx represents policy month
+        - prem_idx: the index of mp_val represents gross premium
+        - av_idx: the index of mp_val represents account value.
+        
+    """
     def __init__(self, mth_idx=4, prem_idx=0, av_idx=2):
         self.mth_idx = mth_idx
         self.prem_idx = prem_idx
@@ -122,6 +138,13 @@ def to_tensor(mp_index, mp_val):
 
 
 class Scale:
+    """Scale mp_value.
+
+    Args:
+        - ratio (float): the multiplier.
+        - exclude_idx_lst (Optional[List[int]]): index of mp_value that will not be scaled. default [3] i.e. index of credit rate. 
+
+    """
 
     def __init__(self, ratio, exclude_idx_lst=(3,)):
         self.ratio = ratio
@@ -136,6 +159,13 @@ class Scale:
 
 
 class ConstantCreditInterest:
+    """ Make the credit rate of the model point set as constant
+
+    Args:
+        - val (float): the value of result constant credit rate.
+        - crd_idx (Optional[int]): the index of credit rate at mp_val default 3.
+
+    """
 
     def __init__(self, val, crd_idx=3):
         self.val = val
@@ -150,6 +180,9 @@ class ConstantCreditInterest:
 # ------------------- Transform from torchvision ----------------
 class Compose:
     """Composes several transforms together.
+
+    Args:
+        transforms (List[Callable]): list of transforms
     """
 
     def __init__(self, transforms):

@@ -12,7 +12,10 @@ Welcome to corona's documentation!
 
    contract
    table
+   probability
+   modelpoint
    prophet
+
 
 
 Indices and tables

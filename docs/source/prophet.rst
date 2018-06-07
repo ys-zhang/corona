@@ -15,7 +15,7 @@ Table Readers:
 
 Read from folders:
 
-.. autofunction:: prlife_reader
+.. autofunction:: prlife_read
 
 .. autofunction:: read_assumption_tables
 

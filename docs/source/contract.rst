@@ -6,8 +6,6 @@ Contract
 
 .. py:currentmodule:: corona.core.contract
 
-API
----
 
 .. autoclass:: Contract
     :members:

@@ -5,8 +5,8 @@ Tables and Lookup Tables
 
 .. py:currentmodule:: corona.table
 
-Index Table
------------
+Index Tables
+------------
 
 .. autoclass:: Table
     :members:
@@ -15,8 +15,8 @@ Index Table
 .. autoclass:: AgeIndexedTable
     :members:
 
-Lookup Table
-------------
+Lookup Tables
+-------------
 
 .. autoclass:: LookupTable
     :members:
@@ -24,5 +24,7 @@ Lookup Table
 
 
 .. autoclass:: PmtLookupTable
+    :members:
 
 .. autoclass:: PmtAgeLookupTable
+    :members:
