@@ -1,4 +1,4 @@
 numpy
 pandas
 cytoolz
-pytorch
+torch
