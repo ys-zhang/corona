@@ -169,8 +169,8 @@
   <div class="section" id="module-corona.prophet">
 <span id="compatibility-of-sungard-prophet-format-tables"></span><h1>Compatibility of Sungard Prophet Format Tables<a class="headerlink" href="#module-corona.prophet" title="Permalink to this headline">¶</a></h1>
 <p>utils for Sungard Prophet Format file support for example .fac .RPT file</p>
-<p>tables are read as instances of <a class="reference internal" href="#corona.prophet.ProphetTable" title="corona.prophet.ProphetTable"><code class="xref py py-class docutils literal notranslate"><span class="pre">ProphetTable</span></code></a>. One table is read, the table
-is cached by <cite>ProphetTable</cite> and indexed by <cite>tablename</cite> exept model point tables.
+<p>tables are read as instances of <a class="reference internal" href="#corona.prophet.ProphetTable" title="corona.prophet.ProphetTable"><code class="xref py py-class docutils literal notranslate"><span class="pre">ProphetTable</span></code></a>. Once a table is read, it
+is cached by <cite>ProphetTable</cite> and indexed by <cite>tablename</cite> except model point tables.
 With the help of this mechanism we implement <cite>Table of Table</cite>.</p>
 <dl class="docutils">
 <dt>For now 5 kinds of Prophet Tables are supported:</dt>
@@ -197,9 +197,9 @@ With the help of this mechanism we implement <cite>Table of Table</cite>.</p>
 At this version, a warn will be thrown out if a column is selected and returned.</li>
 <li>Dot expression can be used to select column just like a DataFrame, for example <cite>GLOBAL.RUN_99</cite>
 is column “RUN_99” of table “GLOBAL”. <strong>We strongly recommend you to use the dot expression only to select columns</strong>.</li>
-<li>Unlike <cite>DataFrame</cite>, there is not <cite>loc</cite> or <cite>iloc</cite> in a <cite>ProphetTable</cite></li>
+<li>Unlike <cite>DataFrame</cite>, there is no <cite>loc</cite> or <cite>iloc</cite> attribute in <cite>ProphetTable</cite></li>
 <li>When selecting cells with string value from a TableOfTable, the result can be different from other types
-of ProphetTables. First the result is looked up in the cache, if there is a table chached with
+of ProphetTables. First the result is looked up in the cache, if there is a table cached with
 the result string as its <cite>tablename</cite>, the cached table is returned in place of the result string.</li>
 </ol>
 <div class="last admonition note">
@@ -216,14 +216,16 @@ raised.</p>
 <div class="code highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">prlife_read</span><span class="p">(</span><span class="s2">&quot;./Tables&quot;</span><span class="p">)</span>
 <span class="n">GLOBAL</span> <span class="o">=</span> <span class="n">ProphetTable</span><span class="o">.</span><span class="n">get_table</span><span class="p">(</span><span class="s1">&#39;GLOBAL&#39;</span><span class="p">)</span>  <span class="c1"># global table is a Table of Table</span>
 <span class="n">GLOBAL</span><span class="o">.</span><span class="n">T</span> <span class="c1"># transpose the table</span>
-<span class="n">RUN13</span> <span class="o">=</span> <span class="n">GLOBAL</span><span class="o">.</span><span class="n">RUN_13</span> <span class="c1"># run 13 configeration, good style</span>
+<span class="n">RUN13</span> <span class="o">=</span> <span class="n">GLOBAL</span><span class="o">.</span><span class="n">RUN_13</span> <span class="c1"># run 13 configuration, good style</span>
 <span class="n">RUN13</span> <span class="o">==</span> <span class="n">GLOBAL</span><span class="p">[</span><span class="s1">&#39;RUN_13&#39;</span><span class="p">]</span> <span class="c1"># True, but bad style</span>
-<span class="n">CNG_TABLE_CONFIG_TBL</span> <span class="o">=</span> <span class="n">GLOBAL</span><span class="o">.</span><span class="n">RUN_13</span><span class="p">[</span><span class="s1">&#39;CNG_TABLE_CONFIG_TBL&#39;</span><span class="p">]</span> <span class="c1"># returns CNG_TABLE_CONFIG_TBL itself of run 13 not the table name</span>
+
+<span class="c1"># returns CNG_TABLE_CONFIG_TBL itself of run 13 not the table name</span>
+<span class="n">CNG_TABLE_CONFIG_TBL</span> <span class="o">=</span> <span class="n">GLOBAL</span><span class="o">.</span><span class="n">RUN_13</span><span class="p">[</span><span class="s1">&#39;CNG_TABLE_CONFIG_TBL&#39;</span><span class="p">]</span>
 <span class="n">CNG_TABLE_CONFIG_TBL</span> <span class="o">==</span> <span class="n">GLOBAL</span><span class="p">[</span><span class="s1">&#39;CNG_TABLE_CONFIG_TBL&#39;</span><span class="p">,</span> <span class="s1">&#39;RUN_13&#39;</span><span class="p">]</span> <span class="c1"># True, good style</span>
 
-<span class="c1"># CNG_TABLE_CONFIG_TBL itself is a TableOfTable thus use can keep selecting like a chain</span>
+<span class="c1"># CNG_TABLE_CONFIG_TBL itself is a TableOfTable thus you can keep selecting like a chain</span>
 <span class="n">lapse_table</span> <span class="o">=</span> <span class="n">GLOBAL</span><span class="o">.</span><span class="n">RUN_13</span><span class="p">[</span><span class="s1">&#39;CNG_TABLE_CONFIG_TBL&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">TABLE_NAME</span><span class="p">[</span><span class="s1">&#39;LAPSE&#39;</span><span class="p">]</span>
-<span class="c1"># some times use may want tablenames not table it self. You can use the</span>
+<span class="c1"># some times you may want `tablename` not table it self. You can use the</span>
 <span class="c1"># `dataframe` attribute of a TableOfTable</span>
 <span class="n">lapse_table_name</span> <span class="o">=</span> <span class="n">GLOBAL</span><span class="o">.</span><span class="n">RUN_13</span><span class="p">[</span><span class="s1">&#39;CNG_TABLE_CONFIG_TBL&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">TABLE_NAME</span><span class="o">.</span><span class="n">dataframe</span><span class="p">[</span><span class="s1">&#39;LAPSE&#39;</span><span class="p">]</span>  <span class="c1"># type: str</span>
 <span class="n">lapse_table2017</span> <span class="o">=</span> <span class="n">ProphetTable</span><span class="o">.</span><span class="n">get_table</span><span class="p">(</span><span class="n">lapse_table_name</span> <span class="o">+</span> <span class="s1">&#39;2017&#39;</span><span class="p">)</span>
@@ -295,7 +297,7 @@ recognized as probability table</li>
 <li><strong>exclude_folder</strong> (<em>str</em>) – name(not path) of sub folder in which all tables are
 ignored</li>
 <li><strong>exclude_pattern</strong> (<em>str</em>) – regular expression of table name that should be ignored</li>
-<li><strong>clear_cache</strong> (<em>bool</em>) – if True cached tables before reading, default False</li>
+<li><strong>clear_cache</strong> (<em>bool</em>) – if True cached tables will be cleared before reading, default False</li>
 </ul>
 </td>
 </tr>
@@ -415,7 +417,8 @@ is used as tablename else guessed from <cite>m_file</cite>.</li>
 <dl class="class">
 <dt id="corona.prophet.ProphetTable">
 <em class="property">class </em><code class="descname">ProphetTable</code><span class="sig-paren">(</span><em>tablename</em>, <em>tabletype</em>, <em>dataframe</em>, <em>*</em>, <em>cache=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/prophet.html#ProphetTable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.prophet.ProphetTable" title="Permalink to this definition">¶</a></dt>
-<dd><p>Class used for <strong>Prophet</strong> table management and reading.</p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Class used for <strong>Prophet</strong> table management and reading.</p>
 <dl class="method">
 <dt id="corona.prophet.ProphetTable.as_modelpoint">
 <code class="descname">as_modelpoint</code><span class="sig-paren">(</span><em>klass=None</em>, <em>*args_of_klass</em>, <em>**kwargs_of_klass</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/prophet.html#ProphetTable.as_modelpoint"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.prophet.ProphetTable.as_modelpoint" title="Permalink to this definition">¶</a></dt>
@@ -589,6 +592,12 @@ is used as tablename else guessed from <cite>m_file</cite>.</li>
 </tr>
 </tbody>
 </table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="corona.prophet.ProphetTable.__weakref__">
+<code class="descname">__weakref__</code><a class="headerlink" href="#corona.prophet.ProphetTable.__weakref__" title="Permalink to this definition">¶</a></dt>
+<dd><p>list of weak references to the object (if defined)</p>
 </dd></dl>
 
 </dd></dl>

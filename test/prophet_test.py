@@ -2,6 +2,7 @@ import unittest
 from corona.prophet import *
 from corona.core.prob import *
 
+
 class TestFacTable(unittest.TestCase):
 
     def setUp(self):
@@ -60,12 +61,12 @@ class TestFacTable(unittest.TestCase):
 
     def testReadFolder(self):
         read_assumption_tables('./data/TABLES', prob_folder='MORT',
-                                     param_pattern=r'PARAMET_.+', tot_pattern='GLOBAL|.*_TABLE_CONFIG',
-                                     exclude_folder = 'CROSS_LASTVAL',
-                                     exclude_pattern='PRICING_AGE_TBL')
+                               param_pattern=r'PARAMET_.+', tot_pattern='GLOBAL|.*_TABLE_CONFIG',
+                               exclude_folder='CROSS_LASTVAL',
+                               exclude_pattern='PRICING_AGE_TBL')
 
     def testPrlifeReader(self):
-        rst = prlife_reader('./data/TABLES')
+        rst = prlife_read('./data/TABLES')
         print(dict([
             [key, [v.tablename for v in val]] for key, val in rst.items()
         ]))

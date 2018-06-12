@@ -163,8 +163,8 @@
 <span></span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">utils for Sungard Prophet Format file support for example .fac .RPT file</span>
 
-<span class="sd">tables are read as instances of :class:`ProphetTable`. One table is read, the table</span>
-<span class="sd">is cached by `ProphetTable` and indexed by `tablename` exept model point tables.</span>
+<span class="sd">tables are read as instances of :class:`ProphetTable`. Once a table is read, it</span>
+<span class="sd">is cached by `ProphetTable` and indexed by `tablename` except model point tables.</span>
 <span class="sd">With the help of this mechanism we implement `Table of Table`.</span>
 
 <span class="sd">For now 5 kinds of Prophet Tables are supported:</span>
@@ -186,9 +186,9 @@
 <span class="sd">       At this version, a warn will be thrown out if a column is selected and returned.</span>
 <span class="sd">    #. Dot expression can be used to select column just like a DataFrame, for example `GLOBAL.RUN_99`</span>
 <span class="sd">       is column &quot;RUN_99&quot; of table &quot;GLOBAL&quot;. **We strongly recommend you to use the dot expression only to select columns**.</span>
-<span class="sd">    #. Unlike `DataFrame`, there is not `loc` or `iloc` in a `ProphetTable`</span>
+<span class="sd">    #. Unlike `DataFrame`, there is no `loc` or `iloc` attribute in `ProphetTable`</span>
 <span class="sd">    #. When selecting cells with string value from a TableOfTable, the result can be different from other types</span>
-<span class="sd">       of ProphetTables. First the result is looked up in the cache, if there is a table chached with</span>
+<span class="sd">       of ProphetTables. First the result is looked up in the cache, if there is a table cached with</span>
 <span class="sd">       the result string as its `tablename`, the cached table is returned in place of the result string.</span>
 
 <span class="sd">    .. note::</span>
@@ -207,14 +207,16 @@
 <span class="sd">    prlife_read(&quot;./Tables&quot;)</span>
 <span class="sd">    GLOBAL = ProphetTable.get_table(&#39;GLOBAL&#39;)  # global table is a Table of Table</span>
 <span class="sd">    GLOBAL.T # transpose the table</span>
-<span class="sd">    RUN13 = GLOBAL.RUN_13 # run 13 configeration, good style</span>
+<span class="sd">    RUN13 = GLOBAL.RUN_13 # run 13 configuration, good style</span>
 <span class="sd">    RUN13 == GLOBAL[&#39;RUN_13&#39;] # True, but bad style</span>
-<span class="sd">    CNG_TABLE_CONFIG_TBL = GLOBAL.RUN_13[&#39;CNG_TABLE_CONFIG_TBL&#39;] # returns CNG_TABLE_CONFIG_TBL itself of run 13 not the table name</span>
+
+<span class="sd">    # returns CNG_TABLE_CONFIG_TBL itself of run 13 not the table name</span>
+<span class="sd">    CNG_TABLE_CONFIG_TBL = GLOBAL.RUN_13[&#39;CNG_TABLE_CONFIG_TBL&#39;]</span>
 <span class="sd">    CNG_TABLE_CONFIG_TBL == GLOBAL[&#39;CNG_TABLE_CONFIG_TBL&#39;, &#39;RUN_13&#39;] # True, good style</span>
 
-<span class="sd">    # CNG_TABLE_CONFIG_TBL itself is a TableOfTable thus use can keep selecting like a chain</span>
+<span class="sd">    # CNG_TABLE_CONFIG_TBL itself is a TableOfTable thus you can keep selecting like a chain</span>
 <span class="sd">    lapse_table = GLOBAL.RUN_13[&#39;CNG_TABLE_CONFIG_TBL&#39;].TABLE_NAME[&#39;LAPSE&#39;]</span>
-<span class="sd">    # some times use may want tablenames not table it self. You can use the</span>
+<span class="sd">    # some times you may want `tablename` not table it self. You can use the</span>
 <span class="sd">    # `dataframe` attribute of a TableOfTable</span>
 <span class="sd">    lapse_table_name = GLOBAL.RUN_13[&#39;CNG_TABLE_CONFIG_TBL&#39;].TABLE_NAME.dataframe[&#39;LAPSE&#39;]  # type: str</span>
 <span class="sd">    lapse_table2017 = ProphetTable.get_table(lapse_table_name + &#39;2017&#39;)</span>
@@ -616,7 +618,7 @@
 <span class="sd">    :param str exclude_folder: name(not path) of sub folder in which all tables are</span>
 <span class="sd">        ignored</span>
 <span class="sd">    :param str exclude_pattern: regular expression of table name that should be ignored</span>
-<span class="sd">    :param bool clear_cache: if True cached tables before reading, default False</span>
+<span class="sd">    :param bool clear_cache: if True cached tables will be cleared before reading, default False</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="kn">import</span> <span class="nn">re</span><span class="o">,</span> <span class="nn">os</span>
     <span class="n">get_name</span> <span class="o">=</span> <span class="n">ProphetTable</span><span class="o">.</span><span class="n">guess_tablename</span>
@@ -638,20 +640,20 @@
     <span class="n">exclude_pattern</span> <span class="o">=</span> <span class="n">compile_re</span><span class="p">(</span><span class="n">exclude_pattern</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">prob_folder</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">prob_folder</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">_</span><span class="p">:</span> <span class="kc">False</span>
+        <span class="k">def</span> <span class="nf">prob_folder</span><span class="p">(</span><span class="n">_</span><span class="p">):</span> <span class="k">return</span> <span class="kc">False</span>
     <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">prob_folder</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
         <span class="kn">from</span> <span class="nn">pathlib</span> <span class="k">import</span> <span class="n">Path</span>
         <span class="n">_f</span> <span class="o">=</span> <span class="n">prob_folder</span>
-        <span class="n">prob_folder</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">_f</span> <span class="ow">in</span> <span class="n">Path</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="o">.</span><span class="n">parts</span>
+        <span class="k">def</span> <span class="nf">prob_folder</span><span class="p">(</span><span class="n">d</span><span class="p">):</span> <span class="k">return</span> <span class="n">_f</span> <span class="ow">in</span> <span class="n">Path</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="o">.</span><span class="n">parts</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">prob_folder</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">exclude_folder</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">exclude_folder</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">_</span><span class="p">:</span> <span class="kc">False</span>
+        <span class="k">def</span> <span class="nf">exclude_folder</span><span class="p">(</span><span class="n">_</span><span class="p">):</span> <span class="k">return</span> <span class="kc">False</span>
     <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exclude_folder</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
         <span class="kn">from</span> <span class="nn">pathlib</span> <span class="k">import</span> <span class="n">Path</span>
         <span class="n">_e</span> <span class="o">=</span> <span class="n">exclude_folder</span>
-        <span class="n">exclude_folder</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">d</span><span class="p">:</span> <span class="n">_e</span> <span class="ow">in</span> <span class="n">Path</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="o">.</span><span class="n">parts</span>
+        <span class="k">def</span> <span class="nf">exclude_folder</span><span class="p">(</span><span class="n">d</span><span class="p">):</span> <span class="k">return</span> <span class="n">_e</span> <span class="ow">in</span> <span class="n">Path</span><span class="p">(</span><span class="n">d</span><span class="p">)</span><span class="o">.</span><span class="n">parts</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">exclude_folder</span><span class="p">)</span>
 

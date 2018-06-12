@@ -11,8 +11,7 @@ class DiscountLayer(Module):
     _RATE_INIT_UPPER_LIMIT = .05
     _RATE_INIT_LOWER_LIMIT = .01
 
-    def __init__(self, forward_rate=None, time_len=MAX_YR_LEN,
-                 *, context=None):
+    def __init__(self, forward_rate=None, time_len=MAX_YR_LEN):
         super().__init__()
         if forward_rate is None:
             self.time_len = time_len
@@ -22,7 +21,6 @@ class DiscountLayer(Module):
             assert forward_rate.dim() == 1
             self.time_len = forward_rate.nelement()
             self.forward_rate = Parameter(forward_rate)
-        self.context = context
 
     def reset_parameters(self):
         self.forward_rate.data.uniform_(self._RATE_INIT_UPPER_LIMIT,
@@ -48,11 +46,10 @@ class DiscountLayer(Module):
 
 class ConstantDiscountRateLayer(DiscountLayer):
 
-    def __init__(self,  forward_rate, time_len=MAX_YR_LEN, *, context):
+    def __init__(self,  forward_rate, time_len=MAX_YR_LEN):
         Module.__init__(self)
         self.time_len = time_len
         if isinstance(forward_rate, float):
             forward_rate = torch.tensor([forward_rate])
         self._forward_rate = Parameter(forward_rate)
         self.forward_rate = self._forward_rate.expand(time_len)
-        self.context = context

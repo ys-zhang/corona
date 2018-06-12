@@ -250,9 +250,9 @@ probability not included in the param <cite>probs</cite>.</p>
 <p><em>Context</em> is a central concept in <cite>corona</cite>. It is widely used when your model has to base on different kinds of
 package of assumptions.</p>
 <p>Typical contexts are <em>PRICING</em>, <em>GAAP</em>, <em>CROSS</em>, etc.</p>
-<p>When we refer to <em>dicount rate</em> or <em>probability</em> in the <em>PRICING</em> context, we mean
+<p>When we refer to <em>discount rate</em> or <em>probability</em> in the <em>PRICING</em> context, we mean
 the discount rate and probabilities used in calculating the <em>gross premium</em> and <em>cash value</em>.</p>
-<p class="last">Whats more, in different contexts, a cash flow may alse have different meanings. For example, within the <em>GAAP</em> context,
+<p class="last">Whats more, in different contexts, a cash flow may also have different meanings. For example, within the <em>GAAP</em> context,
 cashflows come from the linked account of a product whose design type is Universal is 0. Another case
 is the credit rate. When we test how our company will be like under different</p>
 </div>
@@ -296,7 +296,25 @@ cash flow.</p>
 <dl class="class">
 <dt id="corona.core.contract.Contract">
 <em class="property">class </em><code class="descname">Contract</code><span class="sig-paren">(</span><em>name</em>, <em>clauses: corona.core.contract.ClauseGroup</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#Contract"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.Contract" title="Permalink to this definition">¶</a></dt>
-<dd><dl class="method">
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">torch.nn.modules.module.Module</span></code></p>
+<dl class="method">
+<dt id="corona.core.contract.Contract.__init__">
+<code class="descname">__init__</code><span class="sig-paren">(</span><em>name</em>, <em>clauses: corona.core.contract.ClauseGroup</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#Contract.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.Contract.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>name</strong> (<em>str</em>) – name of the contract</li>
+<li><strong>clauses</strong> (<a class="reference internal" href="#corona.core.contract.ClauseGroup" title="corona.core.contract.ClauseGroup"><em>ClauseGroup</em></a>) – clauses of the contract</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
 <dt id="corona.core.contract.Contract.all_clauses">
 <code class="descname">all_clauses</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#Contract.all_clauses"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.Contract.all_clauses" title="Permalink to this definition">¶</a></dt>
 <dd><p>Iterator of all clauses in the contract</p>
@@ -308,37 +326,15 @@ cash flow.</p>
 <dd><p>Iterator of dirty clauses in the contract</p>
 </dd></dl>
 
-<dl class="method">
-<dt id="corona.core.contract.Contract.extra_repr">
-<code class="descname">extra_repr</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#Contract.extra_repr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.Contract.extra_repr" title="Permalink to this definition">¶</a></dt>
-<dd><p>Set the extra representation of the module</p>
-<p>To print customized extra information, you should reimplement
-this method in your own modules. Both single-line and multi-line
-strings are acceptable.</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="corona.core.contract.Contract.forward">
-<code class="descname">forward</code><span class="sig-paren">(</span><em>mp_idx</em>, <em>mp_val</em>, <em>context=None</em>, <em>annual=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#Contract.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.Contract.forward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Although the recipe for forward pass needs to be defined within
-this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div>
-</dd></dl>
-
 </dd></dl>
 
 <div class="section" id="id1">
 <h2>Clause<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="corona.core.contract.Clause">
-<em class="property">class </em><code class="descname">Clause</code><span class="sig-paren">(</span><em>name</em>, <em>ratio_tables</em>, <em>base: Callable = None</em>, <em>*</em>, <em>mth_converter=None</em>, <em>prob_tables=None</em>, <em>default_context='DEFAULT'</em>, <em>virtual=False</em>, <em>contexts_exclude=()</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#Clause"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.Clause" title="Permalink to this definition">¶</a></dt>
-<dd><p>A typical Clause of an insurance contract.</p>
+<em class="property">class </em><code class="descname">Clause</code><span class="sig-paren">(</span><em>name</em>, <em>ratio_tables</em>, <em>base</em>, <em>t_offset</em>, <em>*</em>, <em>mth_converter=None</em>, <em>prob_tables=None</em>, <em>default_context='DEFAULT'</em>, <em>virtual=False</em>, <em>contexts_exclude=()</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#Clause"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.Clause" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">torch.nn.modules.module.Module</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">corona.utils.ContractReferable</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">corona.core.contract.ClauseLike</span></code></p>
+<p>A typical Clause of an insurance contract.</p>
 <dl class="docutils">
 <dt>Attributes:</dt>
 <dd><ul class="first last simple">
@@ -348,53 +344,167 @@ registered hooks while the latter silently ignores them.</p>
 </dl>
 </li>
 <li><dl class="first docutils">
-<dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">prob_assumptions</span></code> (ModuleList)</dt>
-<dd>probability modules attached</dd>
-</dl>
-</li>
-<li><code class="xref py py-attr docutils literal notranslate"><span class="pre">default_context</span></code> (str)</li>
-<li><dl class="first docutils">
-<dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">mth_converter</span></code> (Union[Module, int])</dt>
-<dd>module convert annual cash flow to monthly whether cash flow, if
-<cite>monthly_converter</cite> is integer or None then
-<code class="xref py py-class docutils literal notranslate"><span class="pre">corona.util.CF2M</span></code> is used</dd>
+<dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">base</span></code> (<a class="reference internal" href="#corona.core.contract.BaseConverter" title="corona.core.contract.BaseConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseConverter</span></code></a>)</dt>
+<dd>base of the clause, calculate the value with the ratio will multiply to.</dd>
 </dl>
 </li>
 <li><dl class="first docutils">
-<dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">virtual</span></code> (bool) whether if the prob of this clause will not involved in</dt>
-<dd><em>in force</em> or <em>lx</em> calculation.</dd>
+<dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">t_offset</span></code> (float) time offset.</dt>
+<dd>For example, if t_offset=0.5, the clause is assumed to be triggered
+at the middle of a month in a monthly module
+or at the middle of a year in an annual module.
+<strong>This value is used in discounting cash flow in other modules</strong></dd>
 </dl>
 </li>
 <li><dl class="first docutils">
-<dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">contexts_exclude</span></code> (set) set of context names in which</dt>
-<dd>this clause’s cash flow is excluded or treat as zero,
-but the probability is still in consideration.</dd>
+<dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">ratio_tables</span></code> (<code class="xref py py-class docutils literal notranslate"><span class="pre">ModuleDict</span></code>)</dt>
+<dd>A Module holds modules to calculation the ratio of <cite>base</cite> under some context</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">prob_tables</span></code> (<code class="xref py py-class docutils literal notranslate"><span class="pre">ModuleDict</span></code>)</dt>
+<dd>A Module holds modules to lookup probability under some context</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">default_context</span></code> (str)</dt>
+<dd>The fallback context when the assumption of current contest is not found.</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">mth_converter</span></code> (<code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code>)</dt>
+<dd>module convert annual cash flow to monthly cash flow,</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">virtual</span></code> (bool)</dt>
+<dd>whether if the prob of this clause will not involved in <em>in force</em> or <em>lx</em> calculation.
+for example a clause represents survival benefit should be virtual.</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">contexts_exclude</span></code> (Callable)</dt>
+<dd>judging whether this clause’s cash flow is excluded or treat as zero under the input context,
+<em>but the probability is still in consideration.</em></dd>
 </dl>
 </li>
 </ul>
 </dd>
 </dl>
 <dl class="method">
-<dt id="corona.core.contract.Clause.extra_repr">
-<code class="descname">extra_repr</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#Clause.extra_repr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.Clause.extra_repr" title="Permalink to this definition">¶</a></dt>
-<dd><p>Set the extra representation of the module</p>
-<p>To print customized extra information, you should reimplement
-this method in your own modules. Both single-line and multi-line
-strings are acceptable.</p>
+<dt id="corona.core.contract.Clause.__init__">
+<code class="descname">__init__</code><span class="sig-paren">(</span><em>name</em>, <em>ratio_tables</em>, <em>base</em>, <em>t_offset</em>, <em>*</em>, <em>mth_converter=None</em>, <em>prob_tables=None</em>, <em>default_context='DEFAULT'</em>, <em>virtual=False</em>, <em>contexts_exclude=()</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#Clause.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.Clause.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>name</strong> (<em>str</em>) – name of the clause</li>
+<li><strong>ratio_tables</strong> (<em>Module</em><em> or </em><em>dict</em><em>[</em><em>str</em><em>, </em><em>Module</em><em>] or </em><em>float</em>) – input can be both A dict and a single module.
+if the input is a dict, the keys should be contexts.
+if the input is a single module, the <cite>default_context</cite> is treated as the key
+if the input is a float, then it will convert to a module using <code class="xref py py-class docutils literal notranslate"><span class="pre">Lambda</span></code>, acting like a
+constant multiplier.</li>
+<li><strong>base</strong> (<em>int</em><em> or </em><a class="reference internal" href="#corona.core.contract.BaseConverter" title="corona.core.contract.BaseConverter"><em>BaseConverter</em></a>) – base of the clause, calculate the value with the ratio will multiply to.
+input can be a  <a class="reference internal" href="#corona.core.contract.BaseConverter" title="corona.core.contract.BaseConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseConverter</span></code></a> or integer.
+if the input is a integer, the base of the clause will be a <a class="reference internal" href="#corona.core.contract.BaseSelector" title="corona.core.contract.BaseSelector"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseSelector</span></code></a>.</li>
+<li><strong>t_offset</strong> (<em>float</em>) – time offset</li>
+<li><strong>mth_converter</strong> (<em>Module</em><em> or </em><em>int</em>) – input can be both A module and a integer.
+if <cite>monthly_converter</cite> is integer or None then <code class="xref py py-class docutils literal notranslate"><span class="pre">CF2M</span></code> is used.
+you can use <code class="xref py py-class docutils literal notranslate"><span class="pre">Lambda</span></code> wrap a callable</li>
+<li><strong>prob_tables</strong> (<em>Module</em><em> or </em><em>dict</em><em>[</em><em>str</em><em>, </em><em>Module</em><em>]</em>) – input can be both A dict and a single module.
+if the input is a dict, the keys should be contexts.
+if the input is a single module, the <cite>default_context</cite> is treated as the key</li>
+<li><strong>default_context</strong> (<em>str</em>) – default context, Default ‘DEFAULT’</li>
+<li><strong>virtual</strong> (<em>bool</em>) – default <cite>False</cite></li>
+<li><strong>contexts_exclude</strong> (<em>str</em><em> or </em><em>Iterable</em><em>[</em><em>str</em><em>] or </em><em>Callable</em>) – <p>contexts under which the cash flow of this clause should be excluded.
+Input can be a string, an iterable or a callable.</p>
+<blockquote>
+<div><ul>
+<li>str: can be a single context or contexts separated by comma. if the string is started with <cite>~</cite>, the semantics is <em>‘exclude except’</em>.</li>
+<li>iterable: contexts of the iterable is excluded</li>
+<li>callable: returns <cite>True</cite> if the cash flow should be excluded under the input context.</li>
+</ul>
+</div></blockquote>
+</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="corona.core.contract.Clause.calc_prob">
+<code class="descname">calc_prob</code><span class="sig-paren">(</span><em>mp_idx</em>, <em>mp_val</em>, <em>context</em>, <em>annual</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#Clause.calc_prob"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.Clause.calc_prob" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculate probability of modelpoint under some context</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>mp_idx</strong> (<em>Tensor</em>) – index part of model point</li>
+<li><strong>mp_val</strong> (<em>Tensor</em>) – value part of model point</li>
+<li><strong>context</strong> (<em>str</em>) – calculation context</li>
+<li><strong>annual</strong> (<em>bool</em>) – annual or monthly result</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">probability</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="corona.core.contract.Clause.calc_ratio">
+<code class="descname">calc_ratio</code><span class="sig-paren">(</span><em>mp_idx</em>, <em>mp_val</em>, <em>context</em>, <em>annual</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#Clause.calc_ratio"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.Clause.calc_ratio" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculate ratio of modelpoint under some context</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>mp_idx</strong> (<em>Tensor</em>) – index part of model point</li>
+<li><strong>mp_val</strong> (<em>Tensor</em>) – value part of model point</li>
+<li><strong>context</strong> (<em>str</em>) – calculation context</li>
+<li><strong>annual</strong> (<em>bool</em>) – annual or monthly result</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">ratio</p>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
 <dt id="corona.core.contract.Clause.forward">
 <code class="descname">forward</code><span class="sig-paren">(</span><em>mp_idx</em>, <em>mp_val</em>, <em>context=None</em>, <em>annual=False</em>, <em>*</em>, <em>calculator_results=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#Clause.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.Clause.forward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Although the recipe for forward pass needs to be defined within
-this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div>
+<dd><p>Cash flow calculation.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>mp_idx</strong> (<em>Tensor</em>) – index part of model point</li>
+<li><strong>mp_val</strong> (<em>Tensor</em>) – value part of model point</li>
+<li><strong>context</strong> (<em>str</em>) – calculation context</li>
+<li><strong>annual</strong> (<em>bool</em>) – annual or monthly result</li>
+<li><strong>calculator_results</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>Tensor</em><em>]</em>) – </li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">cash flow detail</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">CashFlow</p>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 </dd></dl>
@@ -402,22 +512,22 @@ registered hooks while the latter silently ignores them.</p>
 <dl class="class">
 <dt id="corona.core.contract.DirtyClause">
 <em class="property">class </em><code class="descname">DirtyClause</code><span class="sig-paren">(</span><em>*args</em>, <em>side_effect</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#DirtyClause"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.DirtyClause" title="Permalink to this definition">¶</a></dt>
-<dd><p>A Clause that is impure and has side effects</p>
-<dl class="method">
-<dt id="corona.core.contract.DirtyClause.extra_repr">
-<code class="descname">extra_repr</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#DirtyClause.extra_repr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.DirtyClause.extra_repr" title="Permalink to this definition">¶</a></dt>
-<dd><p>Set the extra representation of the module</p>
-<p>To print customized extra information, you should reimplement
-this method in your own modules. Both single-line and multi-line
-strings are acceptable.</p>
-</dd></dl>
-
+<dd><p>Bases: <a class="reference internal" href="#corona.core.contract.Clause" title="corona.core.contract.Clause"><code class="xref py py-class docutils literal notranslate"><span class="pre">corona.core.contract.Clause</span></code></a></p>
+<p>A Clause that is impure and has a <a class="reference internal" href="#corona.core.contract.SideEffect" title="corona.core.contract.SideEffect"><code class="xref py py-class docutils literal notranslate"><span class="pre">SideEffect</span></code></a></p>
 </dd></dl>
 
 <dl class="class">
 <dt id="corona.core.contract.SideEffect">
 <em class="property">class </em><code class="descname">SideEffect</code><a class="reference internal" href="_modules/corona/core/contract.html#SideEffect"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.SideEffect" title="Permalink to this definition">¶</a></dt>
-<dd><dl class="attribute">
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Side effect of a impure <a class="reference internal" href="#corona.core.contract.DirtyClause" title="corona.core.contract.DirtyClause"><code class="xref py py-class docutils literal notranslate"><span class="pre">DirtyClause</span></code></a></p>
+<dl class="attribute">
+<dt id="corona.core.contract.SideEffect.__weakref__">
+<code class="descname">__weakref__</code><a class="headerlink" href="#corona.core.contract.SideEffect.__weakref__" title="Permalink to this definition">¶</a></dt>
+<dd><p>list of weak references to the object (if defined)</p>
+</dd></dl>
+
+<dl class="attribute">
 <dt id="corona.core.contract.SideEffect.clause">
 <code class="descname">clause</code><em class="property"> = None</em><a class="headerlink" href="#corona.core.contract.SideEffect.clause" title="Permalink to this definition">¶</a></dt>
 <dd><p>weak proxy of the dirty clause</p>
@@ -428,7 +538,23 @@ strings are acceptable.</p>
 <dl class="class">
 <dt id="corona.core.contract.ChangeAccountValue">
 <em class="property">class </em><code class="descname">ChangeAccountValue</code><a class="reference internal" href="_modules/corona/core/contract.html#ChangeAccountValue"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.ChangeAccountValue" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Bases: <a class="reference internal" href="#corona.core.contract.SideEffect" title="corona.core.contract.SideEffect"><code class="xref py py-class docutils literal notranslate"><span class="pre">corona.core.contract.SideEffect</span></code></a></p>
+<p>SideEffect that will change the account value.
+Used in account value calculation.</p>
+<dl class="method">
+<dt id="corona.core.contract.ChangeAccountValue.__call__">
+<code class="descname">__call__</code><span class="sig-paren">(</span><em>contract</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#ChangeAccountValue.__call__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.ChangeAccountValue.__call__" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>contract</strong> (<a class="reference internal" href="#corona.core.contract.Contract" title="corona.core.contract.Contract"><em>Contract</em></a>) – </td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
 
 </div>
 <div class="section" id="id2">
@@ -436,78 +562,160 @@ strings are acceptable.</p>
 <dl class="class">
 <dt id="corona.core.contract.ClauseGroup">
 <em class="property">class </em><code class="descname">ClauseGroup</code><span class="sig-paren">(</span><em>*clause</em>, <em>name=None</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#ClauseGroup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.ClauseGroup" title="Permalink to this definition">¶</a></dt>
-<dd><p>Base of all Clause containers</p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">corona.utils.ModuleDict</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">corona.core.contract.ClauseLike</span></code></p>
+<p>Base of all Clause containers
+<a class="reference internal" href="#corona.core.contract.ParallelGroup" title="corona.core.contract.ParallelGroup"><code class="xref py py-class docutils literal notranslate"><span class="pre">ParallelGroup</span></code></a> and <a class="reference internal" href="#corona.core.contract.SequentialGroup" title="corona.core.contract.SequentialGroup"><code class="xref py py-class docutils literal notranslate"><span class="pre">SequentialGroup</span></code></a> inherit directly from this class.</p>
+<dl class="method">
+<dt id="corona.core.contract.ClauseGroup.__init__">
+<code class="descname">__init__</code><span class="sig-paren">(</span><em>*clause</em>, <em>name=None</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#ClauseGroup.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.ClauseGroup.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>clause</strong> – clause like objects including <a class="reference internal" href="#corona.core.contract.Clause" title="corona.core.contract.Clause"><code class="xref py py-class docutils literal notranslate"><span class="pre">Clause</span></code></a>,
+<a class="reference internal" href="#corona.core.contract.ParallelGroup" title="corona.core.contract.ParallelGroup"><code class="xref py py-class docutils literal notranslate"><span class="pre">ParallelGroup</span></code></a>, <a class="reference internal" href="#corona.core.contract.SequentialGroup" title="corona.core.contract.SequentialGroup"><code class="xref py py-class docutils literal notranslate"><span class="pre">SequentialGroup</span></code></a> etc</li>
+<li><strong>name</strong> – a optional name of this group</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
 <dl class="method">
 <dt id="corona.core.contract.ClauseGroup.all_clauses">
 <code class="descname">all_clauses</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#ClauseGroup.all_clauses"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.ClauseGroup.all_clauses" title="Permalink to this definition">¶</a></dt>
 <dd><p>iterator of all clauses contained in this group.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">Iterable[<a class="reference internal" href="#corona.core.contract.Clause" title="corona.core.contract.Clause">Clause</a>]</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
 <dt id="corona.core.contract.ClauseGroup.clause_groups">
 <code class="descname">clause_groups</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#ClauseGroup.clause_groups"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.ClauseGroup.clause_groups" title="Permalink to this definition">¶</a></dt>
 <dd><p>Subgroup of clauses contained directly in this group.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">Iterable[<a class="reference internal" href="#corona.core.contract.ClauseGroup" title="corona.core.contract.ClauseGroup">ClauseGroup</a>]</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
 <dt id="corona.core.contract.ClauseGroup.clauses">
 <code class="descname">clauses</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#ClauseGroup.clauses"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.ClauseGroup.clauses" title="Permalink to this definition">¶</a></dt>
 <dd><p>Clauses contained directly in this group.</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="corona.core.contract.ClauseGroup.forward">
-<code class="descname">forward</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#ClauseGroup.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.ClauseGroup.forward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Although the recipe for forward pass needs to be defined within
-this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">Iterable[<a class="reference internal" href="#corona.core.contract.Clause" title="corona.core.contract.Clause">Clause</a>]</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
 <dt id="corona.core.contract.ClauseGroup.named_clause_groups">
 <code class="descname">named_clause_groups</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; dict<a class="reference internal" href="_modules/corona/core/contract.html#ClauseGroup.named_clause_groups"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.ClauseGroup.named_clause_groups" title="Permalink to this definition">¶</a></dt>
 <dd><p>Dict of subgroup of clauses contained directly in this group with name as key.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">Dict[str, <a class="reference internal" href="#corona.core.contract.ClauseGroup" title="corona.core.contract.ClauseGroup">ClauseGroup</a>]</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
 <dt id="corona.core.contract.ClauseGroup.named_clauses">
 <code class="descname">named_clauses</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; dict<a class="reference internal" href="_modules/corona/core/contract.html#ClauseGroup.named_clauses"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.ClauseGroup.named_clauses" title="Permalink to this definition">¶</a></dt>
 <dd><p>Dict of clauses contained directly in this group with name as key.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">Dict[str, <a class="reference internal" href="#corona.core.contract.Clause" title="corona.core.contract.Clause">Clause</a>]</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="corona.core.contract.ClauseGroup.raw_result">
+<code class="descname">raw_result</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#ClauseGroup.raw_result"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.ClauseGroup.raw_result" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calc and return all results of children model</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Returns:</th><td class="field-body">unmodified GResult</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Return type:</th><td class="field-body">GResult</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="method">
 <dt id="corona.core.contract.ClauseGroup.search_clause">
 <code class="descname">search_clause</code><span class="sig-paren">(</span><em>name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#ClauseGroup.search_clause"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.ClauseGroup.search_clause" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get clause by name. It will search among all claused contained in this group,
+<dd><p>Get clause by name. It will search among all clauses contained in this group,
 including those contained by sub groups</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><a class="reference internal" href="#corona.core.contract.Clause" title="corona.core.contract.Clause">Clause</a></td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 </dd></dl>
 
 <dl class="class">
 <dt id="corona.core.contract.ParallelGroup">
-<em class="property">class </em><code class="descname">ParallelGroup</code><span class="sig-paren">(</span><em>*clause</em>, <em>name=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#ParallelGroup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.ParallelGroup" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descname">ParallelGroup</code><span class="sig-paren">(</span><em>*clause</em>, <em>name=None</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#ParallelGroup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.ParallelGroup" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference internal" href="#corona.core.contract.ClauseGroup" title="corona.core.contract.ClauseGroup"><code class="xref py py-class docutils literal notranslate"><span class="pre">corona.core.contract.ClauseGroup</span></code></a></p>
 <p>A container define a list of “Clause” like objects with the order plays
 make no difference to calculation. The clauses within are independent.</p>
 <dl class="method">
 <dt id="corona.core.contract.ParallelGroup.forward">
 <code class="descname">forward</code><span class="sig-paren">(</span><em>mp_idx</em>, <em>mp_val</em>, <em>context=None</em>, <em>annual=False</em>, <em>*</em>, <em>calculator_results=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#ParallelGroup.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.ParallelGroup.forward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Although the recipe for forward pass needs to be defined within
-this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>mp_idx</strong> (<em>Tensor</em>) – index part of model point</li>
+<li><strong>mp_val</strong> (<em>Tensor</em>) – value part of model point</li>
+<li><strong>context</strong> (<em>str</em>) – calculation context</li>
+<li><strong>annual</strong> (<em>bool</em>) – annual or monthly result</li>
+<li><strong>calculator_results</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>Tensor</em><em>]</em>) – </li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">group result of cash flow detail</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">GResult</p>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 </dd></dl>
@@ -515,7 +723,8 @@ registered hooks while the latter silently ignores them.</p>
 <dl class="class">
 <dt id="corona.core.contract.SequentialGroup">
 <em class="property">class </em><code class="descname">SequentialGroup</code><span class="sig-paren">(</span><em>*clause</em>, <em>copula=None</em>, <em>name=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#SequentialGroup"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.SequentialGroup" title="Permalink to this definition">¶</a></dt>
-<dd><p>A container define a list of “Clause” like objects with the order plays
+<dd><p>Bases: <a class="reference internal" href="#corona.core.contract.ClauseGroup" title="corona.core.contract.ClauseGroup"><code class="xref py py-class docutils literal notranslate"><span class="pre">corona.core.contract.ClauseGroup</span></code></a></p>
+<p>A container define a list of “Clause” like objects with the order plays
 a critical role in calculation.</p>
 <p>The probability of the joint distribution at each time is calculated using a copula function.</p>
 <p>the default copula:</p>
@@ -529,21 +738,52 @@ is linked by a <strong>copula</strong> function which takes 2 arguments:</p>
 <li>list of probability (of kicked off from in force) tensors</li>
 <li>the context name</li>
 </ol>
-<p class="last">And returns a list of tensor represents the inforce number just
+<p class="last">And returns a list of tensor represents the number of in force just
 before the clause can be triggered  i.e. <em>px</em>.</p>
 </div>
 <dl class="method">
+<dt id="corona.core.contract.SequentialGroup.__init__">
+<code class="descname">__init__</code><span class="sig-paren">(</span><em>*clause</em>, <em>copula=None</em>, <em>name=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#SequentialGroup.__init__"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.SequentialGroup.__init__" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>clause</strong> – list of clause like objects including Clause,
+ParallelGroup etc</li>
+<li><strong>copula</strong> – a custom copula function</li>
+<li><strong>name</strong> – a optional name of this group</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
 <dt id="corona.core.contract.SequentialGroup.forward">
 <code class="descname">forward</code><span class="sig-paren">(</span><em>mp_idx</em>, <em>mp_val</em>, <em>context=None</em>, <em>annual=False</em>, <em>*</em>, <em>calculator_results=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#SequentialGroup.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.SequentialGroup.forward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Although the recipe for forward pass needs to be defined within
-this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>mp_idx</strong> (<em>Tensor</em>) – index part of model point</li>
+<li><strong>mp_val</strong> (<em>Tensor</em>) – value part of model point</li>
+<li><strong>context</strong> (<em>str</em>) – calculation context</li>
+<li><strong>annual</strong> (<em>bool</em>) – annual or monthly result</li>
+<li><strong>calculator_results</strong> (<em>dict</em><em>[</em><em>str</em><em>, </em><em>Tensor</em><em>]</em>) – </li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first">group result of cash flow detail</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last">GResult</p>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 </dd></dl>
@@ -554,153 +794,49 @@ registered hooks while the latter silently ignores them.</p>
 <dl class="class">
 <dt id="corona.core.contract.BaseConverter">
 <em class="property">class </em><code class="descname">BaseConverter</code><a class="reference internal" href="_modules/corona/core/contract.html#BaseConverter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.BaseConverter" title="Permalink to this definition">¶</a></dt>
-<dd><dl class="method">
-<dt id="corona.core.contract.BaseConverter.forward">
-<code class="descname">forward</code><span class="sig-paren">(</span><em>mp_idx</em>, <em>mp_val</em>, <em>context=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#BaseConverter.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.BaseConverter.forward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Although the recipe for forward pass needs to be defined within
-this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div>
-</dd></dl>
-
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">torch.nn.modules.module.Module</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">corona.utils.ClauseReferable</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">corona.utils.ContractReferable</span></code></p>
 </dd></dl>
 
 <dl class="class">
 <dt id="corona.core.contract.BaseSelector">
 <em class="property">class </em><code class="descname">BaseSelector</code><span class="sig-paren">(</span><em>idx</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#BaseSelector"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.BaseSelector" title="Permalink to this definition">¶</a></dt>
-<dd><dl class="method">
-<dt id="corona.core.contract.BaseSelector.forward">
-<code class="descname">forward</code><span class="sig-paren">(</span><em>mp_idx</em>, <em>mp_val</em>, <em>context=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#BaseSelector.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.BaseSelector.forward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Although the recipe for forward pass needs to be defined within
-this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div>
-</dd></dl>
-
+<dd><p>Bases: <a class="reference internal" href="#corona.core.contract.BaseConverter" title="corona.core.contract.BaseConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">corona.core.contract.BaseConverter</span></code></a></p>
 </dd></dl>
 
 <dl class="class">
 <dt id="corona.core.contract.PremPayed">
 <em class="property">class </em><code class="descname">PremPayed</code><span class="sig-paren">(</span><em>pmt_idx=2</em>, <em>prem_idx=0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#PremPayed"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.PremPayed" title="Permalink to this definition">¶</a></dt>
-<dd><dl class="method">
-<dt id="corona.core.contract.PremPayed.forward">
-<code class="descname">forward</code><span class="sig-paren">(</span><em>mp_idx</em>, <em>mp_val</em>, <em>context=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#PremPayed.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.PremPayed.forward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Although the recipe for forward pass needs to be defined within
-this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div>
-</dd></dl>
-
+<dd><p>Bases: <a class="reference internal" href="#corona.core.contract.BaseConverter" title="corona.core.contract.BaseConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">corona.core.contract.BaseConverter</span></code></a></p>
 </dd></dl>
 
 <dl class="class">
 <dt id="corona.core.contract.WaiveSelf">
 <em class="property">class </em><code class="descname">WaiveSelf</code><span class="sig-paren">(</span><em>pmt_idx=2</em>, <em>prem_idx=0</em>, <em>*</em>, <em>rate</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#WaiveSelf"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.WaiveSelf" title="Permalink to this definition">¶</a></dt>
-<dd><dl class="method">
-<dt id="corona.core.contract.WaiveSelf.forward">
-<code class="descname">forward</code><span class="sig-paren">(</span><em>mp_idx</em>, <em>mp_val</em>, <em>context=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#WaiveSelf.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.WaiveSelf.forward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Although the recipe for forward pass needs to be defined within
-this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div>
-</dd></dl>
-
+<dd><p>Bases: <a class="reference internal" href="#corona.core.contract.BaseConverter" title="corona.core.contract.BaseConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">corona.core.contract.BaseConverter</span></code></a></p>
 </dd></dl>
 
 <dl class="class">
 <dt id="corona.core.contract.Waive">
 <em class="property">class </em><code class="descname">Waive</code><span class="sig-paren">(</span><em>sa_idx=1</em>, <em>*</em>, <em>rate</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#Waive"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.Waive" title="Permalink to this definition">¶</a></dt>
-<dd><dl class="method">
-<dt id="corona.core.contract.Waive.forward">
-<code class="descname">forward</code><span class="sig-paren">(</span><em>mp_idx</em>, <em>mp_val</em>, <em>context=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#Waive.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.Waive.forward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Although the recipe for forward pass needs to be defined within
-this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div>
-</dd></dl>
-
+<dd><p>Bases: <a class="reference internal" href="#corona.core.contract.BaseConverter" title="corona.core.contract.BaseConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">corona.core.contract.BaseConverter</span></code></a></p>
 </dd></dl>
 
 <dl class="class">
 <dt id="corona.core.contract.DescSA">
 <em class="property">class </em><code class="descname">DescSA</code><span class="sig-paren">(</span><em>sa_idx=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#DescSA"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.DescSA" title="Permalink to this definition">¶</a></dt>
-<dd><dl class="method">
-<dt id="corona.core.contract.DescSA.forward">
-<code class="descname">forward</code><span class="sig-paren">(</span><em>mp_idx</em>, <em>mp_val</em>, <em>context=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#DescSA.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.DescSA.forward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Although the recipe for forward pass needs to be defined within
-this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div>
-</dd></dl>
-
+<dd><p>Bases: <a class="reference internal" href="#corona.core.contract.BaseConverter" title="corona.core.contract.BaseConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">corona.core.contract.BaseConverter</span></code></a></p>
 </dd></dl>
 
 <dl class="class">
 <dt id="corona.core.contract.OnesBase">
 <em class="property">class </em><code class="descname">OnesBase</code><a class="reference internal" href="_modules/corona/core/contract.html#OnesBase"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.OnesBase" title="Permalink to this definition">¶</a></dt>
-<dd><dl class="method">
-<dt id="corona.core.contract.OnesBase.forward">
-<code class="descname">forward</code><span class="sig-paren">(</span><em>mp_idx</em>, <em>mp_val</em>, <em>context=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#OnesBase.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.OnesBase.forward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Although the recipe for forward pass needs to be defined within
-this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div>
-</dd></dl>
-
+<dd><p>Bases: <a class="reference internal" href="#corona.core.contract.BaseConverter" title="corona.core.contract.BaseConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">corona.core.contract.BaseConverter</span></code></a></p>
 </dd></dl>
 
 <dl class="class">
 <dt id="corona.core.contract.AccountValue">
 <em class="property">class </em><code class="descname">AccountValue</code><a class="reference internal" href="_modules/corona/core/contract.html#AccountValue"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.AccountValue" title="Permalink to this definition">¶</a></dt>
-<dd><dl class="method">
-<dt id="corona.core.contract.AccountValue.forward">
-<code class="descname">forward</code><span class="sig-paren">(</span><em>mp_idx</em>, <em>mp_val</em>, <em>context=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#AccountValue.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.AccountValue.forward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Although the recipe for forward pass needs to be defined within
-this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div>
-</dd></dl>
-
+<dd><p>Bases: <a class="reference internal" href="#corona.core.contract.BaseConverter" title="corona.core.contract.BaseConverter"><code class="xref py py-class docutils literal notranslate"><span class="pre">corona.core.contract.BaseConverter</span></code></a></p>
 </dd></dl>
 
 </div>
@@ -709,13 +845,21 @@ registered hooks while the latter silently ignores them.</p>
 <dl class="class">
 <dt id="corona.core.contract.Calculator">
 <em class="property">class </em><code class="descname">Calculator</code><span class="sig-paren">(</span><em>contract</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#Calculator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.Calculator" title="Permalink to this definition">¶</a></dt>
-<dd><p>Abstract Calculator</p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Abstract Calculator</p>
+<dl class="attribute">
+<dt id="corona.core.contract.Calculator.__weakref__">
+<code class="descname">__weakref__</code><a class="headerlink" href="#corona.core.contract.Calculator.__weakref__" title="Permalink to this definition">¶</a></dt>
+<dd><p>list of weak references to the object (if defined)</p>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="class">
 <dt id="corona.core.contract.AccountValueCalculator">
 <em class="property">class </em><code class="descname">AccountValueCalculator</code><span class="sig-paren">(</span><em>contract</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/core/contract.html#AccountValueCalculator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.core.contract.AccountValueCalculator" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Bases: <a class="reference internal" href="#corona.core.contract.Calculator" title="corona.core.contract.Calculator"><code class="xref py py-class docutils literal notranslate"><span class="pre">corona.core.contract.Calculator</span></code></a></p>
+</dd></dl>
 
 </div>
 </div>

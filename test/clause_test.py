@@ -12,7 +12,7 @@ class TestContract(unittest.TestCase):
 
     def setUp(self):
         df = ProphetTable.read_modelpoint_table('./data/IUL042.RPT')
-        mp = ModelPointSet(df, transform=to_tensor)
+        mp = ModelPointSet(df.dataframe, transform=to_tensor)
         self.dl = mp.data_loader()
         self.mp_idx = torch.tensor([[0, 12, 1, 88, 23],
                                     [1, 42, 1, 105, 1]]).long()
@@ -21,24 +21,24 @@ class TestContract(unittest.TestCase):
         self.contract = \
             Contract("UL_EXAMPLE",
                      SequentialGroup(
-                         AClause('FEE', ratio_tables=-10.,
+                         AClause('FEE', ratio_tables=-10., t_offset=0,
                                  base=OnesBase(), prob_tables=Inevitable(),
                                  virtual=True),
                          AClause('CREDIT-H1', ratio_tables=KeepCurrentCredit(.5),
                                  base=AccountValue(), prob_tables=Inevitable(),
-                                 contexts_exclude='~PROFIT',
+                                 contexts_exclude='~PROFIT', t_offset=.5,
                                  virtual=True),
                          ParallelGroup(
-                             Clause('DB-INSIDE', ratio_tables=1.,
+                             Clause('DB-INSIDE', ratio_tables=1., t_offset=.5,
                                     base=AccountValue(),
                                     prob_tables=CL13_I, contexts_exclude='GAAP, SOME_OTHER', virtual=True),
-                             Clause('DB-OUTSIDE', ratio_tables=.6,
+                             Clause('DB-OUTSIDE', ratio_tables=.6, t_offset=.5,
                                     base=AccountValue(),
                                     prob_tables=CL13_I),
                              name='DB'),
                          AClause('CREDIT-H2', ratio_tables=KeepCurrentCredit(.5),
                                  base=AccountValue(), prob_tables=Inevitable(),
-                                 contexts_exclude='~PROFIT',
+                                 contexts_exclude='~PROFIT', t_offset=.5,
                                  virtual=True),
                         )
                      )
@@ -65,31 +65,32 @@ class TestContract(unittest.TestCase):
         contract = \
             Contract("UL_EXAMPLE2",
                      SequentialGroup(
-                         AClause('CREDIT-H1', ratio_tables=KeepCurrentCredit(.5),
+                         AClause('CREDIT-H1', ratio_tables=KeepCurrentCredit(.5), t_offset=0.,
                                  base=AccountValue(), prob_tables=Inevitable(),
                                  virtual=True),
                          ParallelGroup(
-                             Clause('DB-INSIDE', ratio_tables=1.,
+                             Clause('DB-INSIDE', ratio_tables=1., t_offset=.5,
                                     base=AccountValue(),
                                     prob_tables=CL13_I, contexts_exclude='GAAP, SOME_OTHER', virtual=True),
-                             Clause('DB-OUTSIDE', ratio_tables=.6,
+                             Clause('DB-OUTSIDE', ratio_tables=.6, t_offset=.5,
                                     base=AccountValue(),
                                     prob_tables=CL13_I),
                              name='DB'
                          ),
-                         AClause('CREDIT-H2', ratio_tables=KeepCurrentCredit(.5),
+                         AClause('CREDIT-H2', ratio_tables=KeepCurrentCredit(.5), t_offset=.5,
                                  base=AccountValue(), prob_tables=Inevitable(),
                                  virtual=True),
                      )
-                     )
+                )
         self.assertSequenceEqual([c.base.key for c in contract.all_clauses() if isinstance(c.base, AccountValue)],
                                  [AccountValueCalculator.INITIAL_AV_KEY, 'CREDIT-H1', 'CREDIT-H1', 'CREDIT-H1'])
 
     def testAVCalculator(self):
-        mp_idx = torch.tensor([[0, 12, 1, 88, 23],
-                               [1, 42, 1, 105, 1]]).long()
+        mp_idx = torch.tensor([[0, 12, 1, 88, 0],
+                               [1, 42, 1, 105, 0]]).long()
         mp_value = torch.tensor([[10000, 10000, 10000, 0.04],
                                  [10000, 10000, 10000, 0.05]], dtype=torch.double)
+
         av_gaap = self.contract.av_calculator.account_value(mp_idx, mp_value, 'GAAP')
         av_default = self.contract.av_calculator.account_value(mp_idx, mp_value, None)
         self.assertAlmostEqual(av_gaap.numpy()[:, -1].sum(), 1853632.77909629)

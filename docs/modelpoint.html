@@ -174,7 +174,8 @@ for details of the DataSet and Transforms in Pytorch, see <a class="reference ex
 <dl class="class">
 <dt id="corona.mp.ModelPointSet">
 <em class="property">class </em><code class="descname">ModelPointSet</code><span class="sig-paren">(</span><em>dataframe: pandas.core.frame.DataFrame</em>, <em>transform=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/mp.html#ModelPointSet"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.mp.ModelPointSet" title="Permalink to this definition">¶</a></dt>
-<dd><dl class="method">
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">torch.utils.data.dataset.Dataset</span></code></p>
+<dl class="method">
 <dt id="corona.mp.ModelPointSet.data_loader">
 <code class="descname">data_loader</code><span class="sig-paren">(</span><em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/mp.html#ModelPointSet.data_loader"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.mp.ModelPointSet.data_loader" title="Permalink to this definition">¶</a></dt>
 <dd><p>Returns a <code class="xref py py-class docutils literal notranslate"><span class="pre">DataLoader</span></code> of the dataset using <a class="reference internal" href="#corona.mp.ModelPointSet.sp_code_batch_sampler" title="corona.mp.ModelPointSet.sp_code_batch_sampler"><code class="xref py py-meth docutils literal notranslate"><span class="pre">sp_code_batch_sampler</span></code></a>
@@ -221,7 +222,8 @@ between dataframe column names to value names</p>
 <dl class="class">
 <dt id="corona.mp.ToNewBusiness">
 <em class="property">class </em><code class="descname">ToNewBusiness</code><span class="sig-paren">(</span><em>mth_idx=4</em>, <em>prem_idx=0</em>, <em>av_idx=2</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/mp.html#ToNewBusiness"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.mp.ToNewBusiness" title="Permalink to this definition">¶</a></dt>
-<dd><p>Transform to mp represent new business. policy month set to zero, and
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Transform to mp represent new business. policy month set to zero, and
 reset account value to gross premium.</p>
 <dl class="docutils">
 <dt>Args:</dt>
@@ -232,12 +234,19 @@ reset account value to gross premium.</p>
 </ul>
 </dd>
 </dl>
+<dl class="attribute">
+<dt id="corona.mp.ToNewBusiness.__weakref__">
+<code class="descname">__weakref__</code><a class="headerlink" href="#corona.mp.ToNewBusiness.__weakref__" title="Permalink to this definition">¶</a></dt>
+<dd><p>list of weak references to the object (if defined)</p>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="class">
 <dt id="corona.mp.Scale">
 <em class="property">class </em><code class="descname">Scale</code><span class="sig-paren">(</span><em>ratio</em>, <em>exclude_idx_lst=(3</em>, <em>)</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/mp.html#Scale"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.mp.Scale" title="Permalink to this definition">¶</a></dt>
-<dd><p>Scale mp_value.</p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Scale mp_value.</p>
 <dl class="docutils">
 <dt>Args:</dt>
 <dd><ul class="first last simple">
@@ -246,12 +255,19 @@ reset account value to gross premium.</p>
 </ul>
 </dd>
 </dl>
+<dl class="attribute">
+<dt id="corona.mp.Scale.__weakref__">
+<code class="descname">__weakref__</code><a class="headerlink" href="#corona.mp.Scale.__weakref__" title="Permalink to this definition">¶</a></dt>
+<dd><p>list of weak references to the object (if defined)</p>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="class">
 <dt id="corona.mp.ConstantCreditInterest">
 <em class="property">class </em><code class="descname">ConstantCreditInterest</code><span class="sig-paren">(</span><em>val</em>, <em>crd_idx=3</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/mp.html#ConstantCreditInterest"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.mp.ConstantCreditInterest" title="Permalink to this definition">¶</a></dt>
-<dd><p>Make the credit rate of the model point set as constant</p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Make the credit rate of the model point set as constant</p>
 <dl class="docutils">
 <dt>Args:</dt>
 <dd><ul class="first last simple">
@@ -260,26 +276,46 @@ reset account value to gross premium.</p>
 </ul>
 </dd>
 </dl>
+<dl class="attribute">
+<dt id="corona.mp.ConstantCreditInterest.__weakref__">
+<code class="descname">__weakref__</code><a class="headerlink" href="#corona.mp.ConstantCreditInterest.__weakref__" title="Permalink to this definition">¶</a></dt>
+<dd><p>list of weak references to the object (if defined)</p>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="class">
 <dt id="corona.mp.Compose">
 <em class="property">class </em><code class="descname">Compose</code><span class="sig-paren">(</span><em>transforms</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/mp.html#Compose"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.mp.Compose" title="Permalink to this definition">¶</a></dt>
-<dd><p>Composes several transforms together.</p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Composes several transforms together.</p>
 <dl class="docutils">
 <dt>Args:</dt>
 <dd>transforms (List[Callable]): list of transforms</dd>
 </dl>
+<dl class="attribute">
+<dt id="corona.mp.Compose.__weakref__">
+<code class="descname">__weakref__</code><a class="headerlink" href="#corona.mp.Compose.__weakref__" title="Permalink to this definition">¶</a></dt>
+<dd><p>list of weak references to the object (if defined)</p>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="class">
 <dt id="corona.mp.Lambda">
 <em class="property">class </em><code class="descname">Lambda</code><span class="sig-paren">(</span><em>lambd</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/mp.html#Lambda"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.mp.Lambda" title="Permalink to this definition">¶</a></dt>
-<dd><p>Apply a user-defined lambda as a transform.</p>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Apply a user-defined lambda as a transform.</p>
 <dl class="docutils">
 <dt>Args:</dt>
 <dd>lambd (function): Lambda/function to be used for transform.</dd>
 </dl>
+<dl class="attribute">
+<dt id="corona.mp.Lambda.__weakref__">
+<code class="descname">__weakref__</code><a class="headerlink" href="#corona.mp.Lambda.__weakref__" title="Permalink to this definition">¶</a></dt>
+<dd><p>list of weak references to the object (if defined)</p>
+</dd></dl>
+
 </dd></dl>
 
 </div>
@@ -288,7 +324,14 @@ reset account value to gross premium.</p>
 <dl class="class">
 <dt id="corona.mp.BatchSamplerFromIndex">
 <em class="property">class </em><code class="descname">BatchSamplerFromIndex</code><span class="sig-paren">(</span><em>mp_or_batch_index</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/mp.html#BatchSamplerFromIndex"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.mp.BatchSamplerFromIndex" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="attribute">
+<dt id="corona.mp.BatchSamplerFromIndex.__weakref__">
+<code class="descname">__weakref__</code><a class="headerlink" href="#corona.mp.BatchSamplerFromIndex.__weakref__" title="Permalink to this definition">¶</a></dt>
+<dd><p>list of weak references to the object (if defined)</p>
+</dd></dl>
+
+</dd></dl>
 
 </div>
 </div>

@@ -4,8 +4,6 @@ Config Padding mechanism are defined in this Module.
 Use `Table` for lookup input are exactly the row number of the table, else use
 `LookupTable`.
 """
-import weakref
-from typing import Union
 import torch
 from torch.nn import Module, Parameter
 from torch import Tensor
@@ -21,33 +19,18 @@ class Table(Module):
 
         \text{out}_{i, j} = \text{table}_{\text{index}_i, j}
 
-    instances will be kept in a WeakValueDict, with their names as keys.
-
     All Table are inherited from this class.
 
     Attributes:
         - :attr:`name` (str)
-           the name of Table, used as the key in the storage WeakValueDict.
+           the name of Table.
         - :attr:`table` (Tensor)
            the table will be indexed, the dim of the table should be not more
            than 2. Padding can be used for long tedious table.
-        - :attr:`n_col` (Optional[int])
-           if None(default), then no padding will be act on the input `table`,
-           if provided the n_col is the total column number of the table
-           after padding.
-        - :attr:`raw_table` (Parameter)
-           the raw table before padding
-
-    Inputs:
-         - :attr:`index` (Tensor)
-            index for index select
-
-    Shape:
-        - index: 1-D
+        - :attr:`n_col` (int)
+           the total column number of the table after padding.
 
     """
-
-    _TABLES = weakref.WeakValueDictionary()
 
     def __init__(self, name: str, table: Tensor, n_col: int=None,
                  *, pad_value: float=0, pad_mode=0):
@@ -64,8 +47,6 @@ class Table(Module):
             Constant padding by default.
         """
         super().__init__()
-        assert name.strip() not in self._TABLES
-        self._TABLES[name] = self
         self.name = name.strip()
         self.table = Parameter(table)
         self.n_col = n_col
@@ -83,6 +64,10 @@ class Table(Module):
         self.pad_mode = pad_mode
 
     def forward(self, index: Tensor):
+        """
+        :param index: 1-D Tensor, index for index select
+        :return: rows at `index`
+        """
         table = pad(self.table, self.n_col, self.pad_value, self.pad_mode)
         if self._need_lookup:
             return torch.index_select(table, 0, index.long())
@@ -92,41 +77,31 @@ class Table(Module):
 
 class LookupTable(Table):
     r""" Defines a LookupTable of parameters of an insurance contract
-    or an assumption with padding mechanism
-    supported throw `pad_mode` and `pad_value`,
+    or an assumption with padding mechanism.
 
-    First the input is converted into row number bu ‘looking up'
-    in`index_table` then the rows are selected in `table`
-    is not the row number of table.
+    First the input is converted into row number by ‘looking up'
+    in `index_table` then the rows are selected in `table`.
 
     .. math::
 
          \text{out}_{i, j} =
             \text{table}_{\text{index_table}[\text{lookup}], \;  j} 
 
-    instances will be kept in a WeakValueDict, with their names as keys.
-
-    All Table are inherited from this class.
+    All LookupTable Tables are inherited from this class.
 
     Attributes:
         - :attr:`name` (str)
-           the name of Table, used as the key in the storage WeakValueDict.
+           the name of Table.
         - :attr:`table` (Tensor)
-           the table will be indexed, the dim of the table should be not more
+           the table will be indexed, the dim of the table should be no more
            than 2. Padding can be used for long tedious table.
         - :attr:`index_table`
-           table storage the row index of lookup value
-        - :attr:`n_col` (Optional[int])
-           if None(default), then no padding will be act on the input `table`,
-           if provided the n_col is the total column number of the table
-           after padding.
-        - :attr:`raw_table` (Parameter)
-           the raw table before padding
-        - :attr:`raw_index_table` (SparseTensor)
-           sparse version of :attr:`index_table`
+           the row index of lookup value
+        - :attr:`n_col` (int)
+           the total column number of the table after padding.
 
     Inputs:
-         - :attr:`lookup` (Tensor): lookup value for index select
+         - :attr:`lookup` (Tensor):
 
     Shape:
         - index: dim >= 1
@@ -186,6 +161,10 @@ class LookupTable(Table):
             raise RuntimeError("dim of index_table bigger than 2")
 
     def forward(self, lookup: Tensor):
+        """
+
+        :param Tensor lookup: lookup value for index select
+        """
         if self._is_one_dim_index:
             index = self.index_table[lookup]
         else:
@@ -194,7 +173,8 @@ class LookupTable(Table):
 
 
 class RatioTableBase(Module, ClauseReferable, ContractReferable):
-
+    """ Base Clase of RatioTable
+    """
     def forward(self, *inputs):
         raise NotImplementedError
 
@@ -210,6 +190,12 @@ class PmtLookupTable(LookupTable, RatioTableBase):
     PMT_IDX = 2
 
     def forward(self, mp_idx, mp_val=None):
+        """
+
+        :param Tensor mp_idx:
+        :param Tensor mp_val:
+        :return:
+        """
         pmt = mp_idx[:, self.PMT_IDX]
         return super().forward(pmt)
 
@@ -225,6 +211,12 @@ class AgeIndexedTable(Table, RatioTableBase):
     AGE_IDX = 1
 
     def forward(self, mp_idx, mp_val=None):
+        """
+
+        :param Tensor mp_idx:
+        :param Tensor mp_val:
+        :return:
+        """
         age = mp_idx[:, self.AGE_IDX]
         return super().forward(age)
 
@@ -241,6 +233,12 @@ class PmtAgeLookupTable(LookupTable, RatioTableBase):
     AGE_IDX = AgeIndexedTable.AGE_IDX
 
     def forward(self, mp_idx, mp_val=None):
+        """
+
+        :param Tensor mp_idx:
+        :param Tensor mp_val:
+        :return:
+        """
         pmt = mp_idx[:, self.PMT_IDX]
         age = mp_idx[:, self.AGE_IDX]
         return super().forward(torch.stack([pmt, age], 0).t())

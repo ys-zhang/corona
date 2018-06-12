@@ -1,8 +1,8 @@
 """
 utils for Sungard Prophet Format file support for example .fac .RPT file
 
-tables are read as instances of :class:`ProphetTable`. One table is read, the table
-is cached by `ProphetTable` and indexed by `tablename` exept model point tables.
+tables are read as instances of :class:`ProphetTable`. Once a table is read, it
+is cached by `ProphetTable` and indexed by `tablename` except model point tables.
 With the help of this mechanism we implement `Table of Table`.
 
 For now 5 kinds of Prophet Tables are supported:
@@ -24,9 +24,9 @@ A `ProphetTable` is just like a pandas DataFrame, except that:
        At this version, a warn will be thrown out if a column is selected and returned.
     #. Dot expression can be used to select column just like a DataFrame, for example `GLOBAL.RUN_99`
        is column "RUN_99" of table "GLOBAL". **We strongly recommend you to use the dot expression only to select columns**.
-    #. Unlike `DataFrame`, there is not `loc` or `iloc` in a `ProphetTable`
+    #. Unlike `DataFrame`, there is no `loc` or `iloc` attribute in `ProphetTable`
     #. When selecting cells with string value from a TableOfTable, the result can be different from other types
-       of ProphetTables. First the result is looked up in the cache, if there is a table chached with
+       of ProphetTables. First the result is looked up in the cache, if there is a table cached with
        the result string as its `tablename`, the cached table is returned in place of the result string.
 
     .. note::
@@ -45,14 +45,16 @@ Example
     prlife_read("./Tables")
     GLOBAL = ProphetTable.get_table('GLOBAL')  # global table is a Table of Table
     GLOBAL.T # transpose the table
-    RUN13 = GLOBAL.RUN_13 # run 13 configeration, good style
+    RUN13 = GLOBAL.RUN_13 # run 13 configuration, good style
     RUN13 == GLOBAL['RUN_13'] # True, but bad style
-    CNG_TABLE_CONFIG_TBL = GLOBAL.RUN_13['CNG_TABLE_CONFIG_TBL'] # returns CNG_TABLE_CONFIG_TBL itself of run 13 not the table name
+
+    # returns CNG_TABLE_CONFIG_TBL itself of run 13 not the table name
+    CNG_TABLE_CONFIG_TBL = GLOBAL.RUN_13['CNG_TABLE_CONFIG_TBL']
     CNG_TABLE_CONFIG_TBL == GLOBAL['CNG_TABLE_CONFIG_TBL', 'RUN_13'] # True, good style
 
-    # CNG_TABLE_CONFIG_TBL itself is a TableOfTable thus use can keep selecting like a chain
+    # CNG_TABLE_CONFIG_TBL itself is a TableOfTable thus you can keep selecting like a chain
     lapse_table = GLOBAL.RUN_13['CNG_TABLE_CONFIG_TBL'].TABLE_NAME['LAPSE']
-    # some times use may want tablenames not table it self. You can use the
+    # some times you may want `tablename` not table it self. You can use the
     # `dataframe` attribute of a TableOfTable
     lapse_table_name = GLOBAL.RUN_13['CNG_TABLE_CONFIG_TBL'].TABLE_NAME.dataframe['LAPSE']  # type: str
     lapse_table2017 = ProphetTable.get_table(lapse_table_name + '2017')
@@ -454,7 +456,7 @@ def read_assumption_tables(folder, *, tot_pattern=None,
     :param str exclude_folder: name(not path) of sub folder in which all tables are
         ignored
     :param str exclude_pattern: regular expression of table name that should be ignored
-    :param bool clear_cache: if True cached tables before reading, default False
+    :param bool clear_cache: if True cached tables will be cleared before reading, default False
     """
     import re, os
     get_name = ProphetTable.guess_tablename
@@ -476,20 +478,20 @@ def read_assumption_tables(folder, *, tot_pattern=None,
     exclude_pattern = compile_re(exclude_pattern)
 
     if prob_folder is None:
-        prob_folder = lambda _: False
+        def prob_folder(_): return False
     elif isinstance(prob_folder, str):
         from pathlib import Path
         _f = prob_folder
-        prob_folder = lambda d: _f in Path(d).parts
+        def prob_folder(d): return _f in Path(d).parts
     else:
         raise TypeError(prob_folder)
 
     if exclude_folder is None:
-        exclude_folder = lambda _: False
+        def exclude_folder(_): return False
     elif isinstance(exclude_folder, str):
         from pathlib import Path
         _e = exclude_folder
-        exclude_folder = lambda d: _e in Path(d).parts
+        def exclude_folder(d): return _e in Path(d).parts
     else:
         raise TypeError(exclude_folder)
 

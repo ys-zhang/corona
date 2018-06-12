@@ -172,7 +172,16 @@
 
 
 <div class="viewcode-block" id="Probability"><a class="viewcode-back" href="../../../../probability.html#corona.core.prob.Probability">[docs]</a><span class="k">class</span> <span class="nc">Probability</span><span class="p">(</span><span class="n">Module</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Class represents a Proabability Table</span>
 
+<span class="sd">    Attributes:</span>
+<span class="sd">        - :attr:`name` (str)</span>
+<span class="sd">           the name of Table.</span>
+<span class="sd">        - :attr:`qx` (:class:`~torch.nn.Parameter`)</span>
+<span class="sd">           annual probability with rows as sex, columns as age</span>
+<span class="sd">        - :attr:`kx` (:class:`~torch.nn.Parameter`)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">SEX_IDX</span><span class="p">,</span> <span class="n">AGE_IDX</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span>
 
     <span class="c1"># noinspection PyArgumentList</span>
@@ -201,14 +210,13 @@
             <span class="n">kx_mth</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="k">return</span> <span class="n">qx_mth</span><span class="p">,</span> <span class="n">kx_mth</span></div>
 
-<div class="viewcode-block" id="Probability.set_parameter"><a class="viewcode-back" href="../../../../probability.html#corona.core.prob.Probability.set_parameter">[docs]</a>    <span class="k">def</span> <span class="nf">set_parameter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">px</span><span class="p">,</span> <span class="n">kx</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="Probability.set_parameter"><a class="viewcode-back" href="../../../../probability.html#corona.core.prob.Probability.set_parameter">[docs]</a>    <span class="k">def</span> <span class="nf">set_parameter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">qx</span><span class="p">,</span> <span class="n">kx</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Set Parameter with new tensor value</span>
 
-<span class="sd">        :param Tensor px:</span>
+<span class="sd">        :param Tensor qx:</span>
 <span class="sd">        :param Tensor kx:</span>
-<span class="sd">        :return: self</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">px</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">set_</span><span class="p">(</span><span class="n">px</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">qx</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">set_</span><span class="p">(</span><span class="n">qx</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">kx</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">kx</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">kx</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">set_</span><span class="p">(</span><span class="n">kx</span><span class="p">)</span>
         <span class="k">return</span> <span class="bp">self</span></div>
@@ -222,7 +230,7 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">Probability</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">qx</span><span class="p">,</span> <span class="n">kx</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="Probability.forward"><a class="viewcode-back" href="../../../../probability.html#corona.core.prob.Probability.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">annual</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">-&gt;</span><span class="n">Tensor</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">annual</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">-&gt;</span><span class="n">Tensor</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">annual</span><span class="p">:</span>
             <span class="n">px</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">qx</span>
             <span class="n">kx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kx</span>
@@ -236,7 +244,7 @@
         <span class="n">age</span> <span class="o">=</span> <span class="n">mp_idx</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">AGE_IDX</span><span class="p">]</span><span class="o">.</span><span class="n">long</span><span class="p">()</span>
         <span class="n">index</span> <span class="o">=</span> <span class="n">age</span> <span class="k">if</span> <span class="n">annual</span> <span class="k">else</span> <span class="n">age</span> <span class="o">*</span> <span class="mi">12</span>
         <span class="n">px</span> <span class="o">=</span> <span class="n">px</span><span class="o">.</span><span class="n">index_select</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">sex</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">time_slice</span><span class="p">(</span><span class="n">px</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="mf">0.</span><span class="p">)</span></div>
+        <span class="k">return</span> <span class="n">time_slice</span><span class="p">(</span><span class="n">px</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="mf">0.</span><span class="p">)</span>
 
 <div class="viewcode-block" id="Probability.combine_selection_factor"><a class="viewcode-back" href="../../../../probability.html#corona.core.prob.Probability.combine_selection_factor">[docs]</a>    <span class="k">def</span> <span class="nf">combine_selection_factor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sele_layer</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Create a</span>
@@ -246,8 +254,8 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">SelectedProbability</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sele_layer</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="Probability.extra_repr"><a class="viewcode-back" href="../../../../probability.html#corona.core.prob.Probability.extra_repr">[docs]</a>    <span class="k">def</span> <span class="nf">extra_repr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span></div></div>
+    <span class="k">def</span> <span class="nf">extra_repr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span></div>
 
 
 <div class="viewcode-block" id="Inevitable"><a class="viewcode-back" href="../../../../probability.html#corona.core.prob.Inevitable">[docs]</a><span class="k">class</span> <span class="nc">Inevitable</span><span class="p">(</span><span class="n">Module</span><span class="p">):</span>
@@ -255,8 +263,8 @@
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
 
-<div class="viewcode-block" id="Inevitable.forward"><a class="viewcode-back" href="../../../../probability.html#corona.core.prob.Inevitable.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">annual</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">mp_val</span><span class="o">.</span><span class="n">new_full</span><span class="p">((</span><span class="mi">1</span><span class="p">,),</span> <span class="mi">1</span><span class="p">)</span></div></div>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">annual</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">mp_val</span><span class="o">.</span><span class="n">new_full</span><span class="p">((</span><span class="mi">1</span><span class="p">,),</span> <span class="mi">1</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="SelectionFactor"><a class="viewcode-back" href="../../../../probability.html#corona.core.prob.SelectionFactor">[docs]</a><span class="k">class</span> <span class="nc">SelectionFactor</span><span class="p">(</span><span class="n">Module</span><span class="p">):</span>
@@ -276,16 +284,16 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">fac</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">set_</span><span class="p">(</span><span class="n">selection_factor</span><span class="p">)</span>
         <span class="k">return</span> <span class="bp">self</span>
 
-<div class="viewcode-block" id="SelectionFactor.forward"><a class="viewcode-back" href="../../../../probability.html#corona.core.prob.SelectionFactor.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">annual</span><span class="p">)</span><span class="o">-&gt;</span><span class="n">Tensor</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">annual</span><span class="p">)</span><span class="o">-&gt;</span><span class="n">Tensor</span><span class="p">:</span>
         <span class="n">fac</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fac</span> <span class="k">if</span> <span class="n">annual</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">monthly_factor</span><span class="p">()</span>
         <span class="n">sex</span> <span class="o">=</span> <span class="n">mp_idx</span><span class="p">[:,</span> <span class="n">Probability</span><span class="o">.</span><span class="n">SEX_IDX</span><span class="p">]</span><span class="o">.</span><span class="n">long</span><span class="p">()</span>
-        <span class="k">return</span> <span class="n">fac</span><span class="p">[</span><span class="n">sex</span><span class="p">,</span> <span class="p">:]</span></div>
+        <span class="k">return</span> <span class="n">fac</span><span class="p">[</span><span class="n">sex</span><span class="p">,</span> <span class="p">:]</span>
 
     <span class="k">def</span> <span class="nf">combine_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prob_layer</span><span class="p">:</span> <span class="n">Module</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">SelectedProbability</span><span class="p">(</span><span class="n">prob_layer</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
 
-<div class="viewcode-block" id="SelectionFactor.extra_repr"><a class="viewcode-back" href="../../../../probability.html#corona.core.prob.SelectionFactor.extra_repr">[docs]</a>    <span class="k">def</span> <span class="nf">extra_repr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span></div></div>
+    <span class="k">def</span> <span class="nf">extra_repr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span></div>
 
 
 <div class="viewcode-block" id="SelectedProbability"><a class="viewcode-back" href="../../../../probability.html#corona.core.prob.SelectedProbability">[docs]</a><span class="k">class</span> <span class="nc">SelectedProbability</span><span class="p">(</span><span class="n">Module</span><span class="p">):</span>
@@ -299,16 +307,16 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">prob_layer</span><span class="o">.</span><span class="n">name</span>
 
-<div class="viewcode-block" id="SelectedProbability.extra_repr"><a class="viewcode-back" href="../../../../probability.html#corona.core.prob.SelectedProbability.extra_repr">[docs]</a>    <span class="k">def</span> <span class="nf">extra_repr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span></div>
+    <span class="k">def</span> <span class="nf">extra_repr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
 
-<div class="viewcode-block" id="SelectedProbability.forward"><a class="viewcode-back" href="../../../../probability.html#corona.core.prob.SelectedProbability.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">annual</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">annual</span><span class="p">):</span>
         <span class="n">p</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">prob_layer</span><span class="p">(</span><span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">annual</span><span class="p">)</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sele_layer</span><span class="p">(</span><span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">annual</span><span class="p">)</span>
             <span class="k">return</span> <span class="n">s</span> <span class="o">*</span> <span class="n">p</span>
         <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">p</span></div></div>
+            <span class="k">return</span> <span class="n">p</span></div>
 
 
 

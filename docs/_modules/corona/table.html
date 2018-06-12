@@ -166,8 +166,6 @@
 <span class="sd">Use `Table` for lookup input are exactly the row number of the table, else use</span>
 <span class="sd">`LookupTable`.</span>
 <span class="sd">&quot;&quot;&quot;</span>
-<span class="kn">import</span> <span class="nn">weakref</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="k">import</span> <span class="n">Union</span>
 <span class="kn">import</span> <span class="nn">torch</span>
 <span class="kn">from</span> <span class="nn">torch.nn</span> <span class="k">import</span> <span class="n">Module</span><span class="p">,</span> <span class="n">Parameter</span>
 <span class="kn">from</span> <span class="nn">torch</span> <span class="k">import</span> <span class="n">Tensor</span>
@@ -183,33 +181,18 @@
 
 <span class="sd">        \text{out}_{i, j} = \text{table}_{\text{index}_i, j}</span>
 
-<span class="sd">    instances will be kept in a WeakValueDict, with their names as keys.</span>
-
 <span class="sd">    All Table are inherited from this class.</span>
 
 <span class="sd">    Attributes:</span>
 <span class="sd">        - :attr:`name` (str)</span>
-<span class="sd">           the name of Table, used as the key in the storage WeakValueDict.</span>
+<span class="sd">           the name of Table.</span>
 <span class="sd">        - :attr:`table` (Tensor)</span>
 <span class="sd">           the table will be indexed, the dim of the table should be not more</span>
 <span class="sd">           than 2. Padding can be used for long tedious table.</span>
-<span class="sd">        - :attr:`n_col` (Optional[int])</span>
-<span class="sd">           if None(default), then no padding will be act on the input `table`,</span>
-<span class="sd">           if provided the n_col is the total column number of the table</span>
-<span class="sd">           after padding.</span>
-<span class="sd">        - :attr:`raw_table` (Parameter)</span>
-<span class="sd">           the raw table before padding</span>
-
-<span class="sd">    Inputs:</span>
-<span class="sd">         - :attr:`index` (Tensor)</span>
-<span class="sd">            index for index select</span>
-
-<span class="sd">    Shape:</span>
-<span class="sd">        - index: 1-D</span>
+<span class="sd">        - :attr:`n_col` (int)</span>
+<span class="sd">           the total column number of the table after padding.</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="n">_TABLES</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">WeakValueDictionary</span><span class="p">()</span>
 
 <div class="viewcode-block" id="Table.__init__"><a class="viewcode-back" href="../../table.html#corona.table.Table.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">table</span><span class="p">:</span> <span class="n">Tensor</span><span class="p">,</span> <span class="n">n_col</span><span class="p">:</span> <span class="nb">int</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="o">*</span><span class="p">,</span> <span class="n">pad_value</span><span class="p">:</span> <span class="nb">float</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">pad_mode</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
@@ -226,8 +209,6 @@
 <span class="sd">            Constant padding by default.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
-        <span class="k">assert</span> <span class="n">name</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_TABLES</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_TABLES</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">table</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">table</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">n_col</span> <span class="o">=</span> <span class="n">n_col</span>
@@ -245,6 +226,10 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">pad_mode</span> <span class="o">=</span> <span class="n">pad_mode</span></div>
 
 <div class="viewcode-block" id="Table.forward"><a class="viewcode-back" href="../../table.html#corona.table.Table.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="n">Tensor</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        :param index: 1-D Tensor, index for index select</span>
+<span class="sd">        :return: rows at `index`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">table</span> <span class="o">=</span> <span class="n">pad</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">table</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_col</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pad_value</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pad_mode</span><span class="p">)</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_need_lookup</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">index_select</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">index</span><span class="o">.</span><span class="n">long</span><span class="p">())</span>
@@ -254,41 +239,31 @@
 
 <div class="viewcode-block" id="LookupTable"><a class="viewcode-back" href="../../table.html#corona.table.LookupTable">[docs]</a><span class="k">class</span> <span class="nc">LookupTable</span><span class="p">(</span><span class="n">Table</span><span class="p">):</span>
     <span class="sd">r&quot;&quot;&quot; Defines a LookupTable of parameters of an insurance contract</span>
-<span class="sd">    or an assumption with padding mechanism</span>
-<span class="sd">    supported throw `pad_mode` and `pad_value`,</span>
+<span class="sd">    or an assumption with padding mechanism.</span>
 
-<span class="sd">    First the input is converted into row number bu ‘looking up&#39;</span>
-<span class="sd">    in`index_table` then the rows are selected in `table`</span>
-<span class="sd">    is not the row number of table.</span>
+<span class="sd">    First the input is converted into row number by ‘looking up&#39;</span>
+<span class="sd">    in `index_table` then the rows are selected in `table`.</span>
 
 <span class="sd">    .. math::</span>
 
 <span class="sd">         \text{out}_{i, j} =</span>
 <span class="sd">            \text{table}_{\text{index_table}[\text{lookup}], \;  j} </span>
 
-<span class="sd">    instances will be kept in a WeakValueDict, with their names as keys.</span>
-
-<span class="sd">    All Table are inherited from this class.</span>
+<span class="sd">    All LookupTable Tables are inherited from this class.</span>
 
 <span class="sd">    Attributes:</span>
 <span class="sd">        - :attr:`name` (str)</span>
-<span class="sd">           the name of Table, used as the key in the storage WeakValueDict.</span>
+<span class="sd">           the name of Table.</span>
 <span class="sd">        - :attr:`table` (Tensor)</span>
-<span class="sd">           the table will be indexed, the dim of the table should be not more</span>
+<span class="sd">           the table will be indexed, the dim of the table should be no more</span>
 <span class="sd">           than 2. Padding can be used for long tedious table.</span>
 <span class="sd">        - :attr:`index_table`</span>
-<span class="sd">           table storage the row index of lookup value</span>
-<span class="sd">        - :attr:`n_col` (Optional[int])</span>
-<span class="sd">           if None(default), then no padding will be act on the input `table`,</span>
-<span class="sd">           if provided the n_col is the total column number of the table</span>
-<span class="sd">           after padding.</span>
-<span class="sd">        - :attr:`raw_table` (Parameter)</span>
-<span class="sd">           the raw table before padding</span>
-<span class="sd">        - :attr:`raw_index_table` (SparseTensor)</span>
-<span class="sd">           sparse version of :attr:`index_table`</span>
+<span class="sd">           the row index of lookup value</span>
+<span class="sd">        - :attr:`n_col` (int)</span>
+<span class="sd">           the total column number of the table after padding.</span>
 
 <span class="sd">    Inputs:</span>
-<span class="sd">         - :attr:`lookup` (Tensor): lookup value for index select</span>
+<span class="sd">         - :attr:`lookup` (Tensor):</span>
 
 <span class="sd">    Shape:</span>
 <span class="sd">        - index: dim &gt;= 1</span>
@@ -348,6 +323,10 @@
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;dim of index_table bigger than 2&quot;</span><span class="p">)</span></div>
 
 <div class="viewcode-block" id="LookupTable.forward"><a class="viewcode-back" href="../../table.html#corona.table.LookupTable.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lookup</span><span class="p">:</span> <span class="n">Tensor</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">        :param Tensor lookup: lookup value for index select</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_one_dim_index</span><span class="p">:</span>
             <span class="n">index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">index_table</span><span class="p">[</span><span class="n">lookup</span><span class="p">]</span>
         <span class="k">else</span><span class="p">:</span>
@@ -356,7 +335,8 @@
 
 
 <span class="k">class</span> <span class="nc">RatioTableBase</span><span class="p">(</span><span class="n">Module</span><span class="p">,</span> <span class="n">ClauseReferable</span><span class="p">,</span> <span class="n">ContractReferable</span><span class="p">):</span>
-
+    <span class="sd">&quot;&quot;&quot; Base Clase of RatioTable</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">inputs</span><span class="p">):</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span>
 
@@ -372,6 +352,12 @@
     <span class="n">PMT_IDX</span> <span class="o">=</span> <span class="mi">2</span>
 
 <div class="viewcode-block" id="PmtLookupTable.forward"><a class="viewcode-back" href="../../table.html#corona.table.PmtLookupTable.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">        :param Tensor mp_idx:</span>
+<span class="sd">        :param Tensor mp_val:</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">pmt</span> <span class="o">=</span> <span class="n">mp_idx</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">PMT_IDX</span><span class="p">]</span>
         <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">pmt</span><span class="p">)</span></div></div>
 
@@ -387,6 +373,12 @@
     <span class="n">AGE_IDX</span> <span class="o">=</span> <span class="mi">1</span>
 
 <div class="viewcode-block" id="AgeIndexedTable.forward"><a class="viewcode-back" href="../../table.html#corona.table.AgeIndexedTable.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">        :param Tensor mp_idx:</span>
+<span class="sd">        :param Tensor mp_val:</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">age</span> <span class="o">=</span> <span class="n">mp_idx</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">AGE_IDX</span><span class="p">]</span>
         <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">age</span><span class="p">)</span></div></div>
 
@@ -403,6 +395,12 @@
     <span class="n">AGE_IDX</span> <span class="o">=</span> <span class="n">AgeIndexedTable</span><span class="o">.</span><span class="n">AGE_IDX</span>
 
 <div class="viewcode-block" id="PmtAgeLookupTable.forward"><a class="viewcode-back" href="../../table.html#corona.table.PmtAgeLookupTable.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">        :param Tensor mp_idx:</span>
+<span class="sd">        :param Tensor mp_val:</span>
+<span class="sd">        :return:</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">pmt</span> <span class="o">=</span> <span class="n">mp_idx</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">PMT_IDX</span><span class="p">]</span>
         <span class="n">age</span> <span class="o">=</span> <span class="n">mp_idx</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">AGE_IDX</span><span class="p">]</span>
         <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">pmt</span><span class="p">,</span> <span class="n">age</span><span class="p">],</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">t</span><span class="p">())</span></div></div>

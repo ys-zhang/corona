@@ -2,6 +2,7 @@ import weakref
 import re
 import enum
 import warnings
+
 import torch
 import collections
 from torch import Tensor, nn
@@ -10,17 +11,273 @@ import numpy as np
 from cytoolz import isiterable, keyfilter, valmap
 
 
-CResult = collections.namedtuple('CResult', ["pcf", "cf", "p"])
+class CashFlow:
+    """Cash Flow Data, return type of :class:`~core.contract.Clause`
+
+    Attributes:
+
+        :attr:`cf` Blank Cash Flow
+        :attr:`p` probability of the cash flow
+        :attr:`qx` probability of kick out of the contract
+        :attr:`lx` in force number before the cash flow happens
+        :attr:`t_offset` time offset to begining of each time interval
+
+    """
+
+    __slots__ = ("cf", "p", "qx", 'lx', 't_offset')
+
+    def __init__(self, cf, p, qx, lx, t_offset):
+        self.cf = cf
+        self.p = p
+        self.qx = qx
+        self.lx = lx
+        self.t_offset = t_offset
+
+    def __getitem__(self, item):
+        return CashFlow(self.cf[item], self.p[item],
+                        self.qx[item], self.lx[item], self.t_offset)
+
+    @property
+    def pcf(self):
+        """ cf * p
+
+        :rtype: Tensor
+        """
+        return self.cf * self.p
+
+    @property
+    def icf(self):
+        """ cf * p * lx
+
+        :rtype: Tensor
+        """
+        return self.pcf * self.lx
+
+    @property
+    def lx2(self):
+        """ (1 - qx) * lx
+
+        :rtype: Tensor
+        """
+        return self.lx * self.px
+
+    @property
+    def px(self):
+        """ 1 - qx
+
+        :rtype: Tensor
+        """
+        return 1 - self.qx
+
+    @px.setter
+    def px(self, px):
+        self.qx = 1 - px
+
+    def lx_mul_(self, ts):
+        """ Make CashFlow has a interface compatible to :class:`GResult`.
+        see :meth:`GResult.lx_mul_`
+        """
+        self.lx = self.lx * ts
+        return self
+
+    def remove_offset(self, forward_rate):
+        """ Equivalent CashFlow with t_offset=0
+
+        :param Tensor forward_rate: discount rate
+        :rtype: CashFlow
+        """
+        if self.t_offset != 0:
+            return CashFlow(self.cf / forward_rate.add(1).pow(self.t_offset),
+                            self.p, self.qx, self.lx, 0)
+        else:
+            return self
+
+    def full_offset(self, forward_rate):
+        """ Equivalent CashFlow with t_offset=1
+
+        :param Tensor forward_rate: discount rate
+        :rtype: CashFlow
+        """
+        if self.t_offset != 1:
+            return CashFlow(self.cf * forward_rate.add(1).pow(1 - self.t_offset),
+                            self.p, self.qx, self.lx, 1)
+        else:
+            return self
+
+    def remove_offset_(self, forward_rate):
+        if self.t_offset != 0:
+            self.cf.div_(forward_rate.add(1).pow(self.t_offset))
+            self.t_offset = 0.
+        return self
+
+    def full_offset_(self, forward_rate):
+        if self.t_offset != 1:
+            self.cf.mul_(forward_rate.add(1).pow(1 - self.t_offset))
+            self.t_offset = 1.
+        return self
+
+
+class GResult:
+    r""" Result Type of :class:`~core.contract.ClauseGroup`.
+
+    Attributes:
+        :attr:`results`:
+            An `OrderedDict` holding results of sub clause-like modules of the
+            :class:`~core.contract.ClauseGroup` generated the `GResult` object
+        :attr:`qx`:
+            A `Tensor` represents the equivalent `qx` of the whole GResult
+            treated as a single entity.
+        :attr:`lx`:
+            A `Tensor` represents the number of in force before any of sub results
+            happens.
+
+            .. note:
+
+                The value of this :attr:`lx` is linked to `lx`s of its :attr:`results`
+                *just **after** initialization*. Once :attr:`lx` is reset by `=`,
+                `lx`s of `results` is updated by
+
+                .. math:
+                    \text{results.lx}_{\text{new}} = \text{results.lx}_{\text{old}}
+                        * \text{lx}_{\text{new}} / \text{lx}_{\text{old}}
+
+    """
+    __slots__ = ('results', '_lx', 'qx')
+
+    def __init__(self, results, qx=None, lx=1):
+        """
+
+        :param results: OrderedDict of :class:`CashFlow`s or :class:`GResults`.
+        :type results: OrderedDict
+        :param Tensor qx: equivalent qx if the GResult object is treated as a single entity
+        :param lx: number of in force before any of the cash flows of this GResult happen
+        :type lx: float or Tensor
+        """
+        self.results = results  # type: collections.OrderedDict
+        self._lx = lx
+        self.qx = qx
+
+    @property
+    def lx(self):
+        return self._lx
+
+    @lx.setter
+    def lx(self, lx):
+        _lx = self._lx
+        self._lx = lx
+        for v in self.results.values():  # type: GResult or CashFlow
+            v.lx = v.lx * lx / _lx
+
+    def lx_mul_(self, ts):
+        """Multiply `lx` by `ts` equivalent to::
+            g_result.lx = lx * ts
+
+        this method is faster and returns `self`.
+
+        :param Tensor ts: the multiplier
+        :rtype: GResult
+        """
+        self._lx = self._lx * ts
+        for v in self.results.values():  # type: GResult or CashFlow
+            v.lx = v.lx * ts
+        return self
+
+    def __getitem__(self, item):
+        return self.results[item]
+
+    def __setitem__(self, key, value):
+        self.results[key] = value
+
+    def keys(self):
+        return self.results.keys()
+
+    def values(self):
+        return self.results.values()
+
+    def items(self):
+        return self.results.items()
+
+    def __iter__(self):
+        return self.items()
+
+    def flat(self):
+        """ Flat result of the collection
+        :rtype: FResult
+        """
+        return FResult(self)
+
+
+class FResult(collections.OrderedDict):
+    """ Container to store a **flat** collection of :class:`CashFlow`s with the name of
+    the clause generates the cash flow as the key.
+    """
+    __slots__ = ()
+
+    def __init__(self, raw_result):
+        """
+
+        :param OrderedDict raw_result: raw result
+        :type raw_result: GResult
+        """
+        super().__init__(self._make_iter(raw_result))
+
+    @staticmethod
+    def _make_iter(raw_result):
+        for i, v in raw_result.items():
+            if isinstance(v, GResult):
+                yield from FResult._make_iter(v)
+            elif isinstance(v, CashFlow):
+                yield i, v
+            else:
+                raise TypeError(v)
+
+    def cf(self, value_only=False):
+        if value_only:
+            return [v.cf for v in self.values()]
+        else:
+            return collections.OrderedDict(((k, v.cf) for k, v in self.items()))
+
+    def p(self, value_only=False):
+        if value_only:
+            return [v.p for v in self.values()]
+        else:
+            return collections.OrderedDict(((k, v.p) for k, v in self.items()))
+
+    def qx(self, value_only=False):
+        if value_only:
+            return [v.qx for v in self.values()]
+        else:
+            return collections.OrderedDict(((k, v.qx) for k, v in self.items()))
+
+    def px(self, value_only=False):
+        if value_only:
+            return [v.px for v in self.values()]
+        else:
+            return collections.OrderedDict(((k, v.px) for k, v in self.items()))
+
+    def t_offset(self, value_only=False):
+        if value_only:
+            return [v.t_offset for v in self.values()]
+        else:
+            return collections.OrderedDict(((k, v.t_offset) for k, v in self.items()))
+
+    def apply_(self, func):
+        for k, cf in self.values():
+            self[k] = func(cf)
+        return self
 
 
 class Repeat(torch.autograd.Function):
     """Repeat a tensor
 
-    * :attr:`ts_input`: (Tensor) the input tensor
-    * :attr:`times`: (int) repeat how many times default 12
-    * :attr: `axis`: (int) axis along which to repeat values default -1
+    Inputs:
+
+        * `ts_input`: (Tensor) the input tensor
+        * `times`: (int) repeat how many times default 12
+        * `axis`: (int) axis along which to repeat values default -1
 
     >>> Repeat.apply(torch.range(0, 1), 2)
+
     """
 
     @staticmethod
@@ -120,7 +377,7 @@ def time_slice(tbl: Tensor, aft: Tensor, pad_value=0.)->Tensor:
     r"""
     .. math::
 
-        out_{i, j} = ts_{i + aft, j} * \chi_{j + aft < n} +
+        out_{i, j} = ts_{i, j + aft} * \chi_{j + aft < n} +
             pad_value * \chi_{j + aft \ge n}
 
     """

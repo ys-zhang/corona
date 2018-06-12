@@ -175,18 +175,18 @@ Config Padding mechanism are defined in this Module.</p>
 <dl class="class">
 <dt id="corona.table.Table">
 <em class="property">class </em><code class="descname">Table</code><span class="sig-paren">(</span><em>name: str</em>, <em>table: torch.Tensor</em>, <em>n_col: int = None</em>, <em>*</em>, <em>pad_value: float = 0</em>, <em>pad_mode=0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/table.html#Table"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.table.Table" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines a Table of parameters of an insurance contract or an assumption
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">torch.nn.modules.module.Module</span></code></p>
+<p>Defines a Table of parameters of an insurance contract or an assumption
 with padding mechanism supported throw <cite>pad_mode</cite> and <cite>pad_value</cite>.</p>
 <div class="math notranslate nohighlight">
 \[\text{out}_{i, j} = \text{table}_{\text{index}_i, j}\]</div>
-<p>instances will be kept in a WeakValueDict, with their names as keys.</p>
 <p>All Table are inherited from this class.</p>
 <dl class="docutils">
 <dt>Attributes:</dt>
 <dd><ul class="first last simple">
 <li><dl class="first docutils">
 <dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">name</span></code> (str)</dt>
-<dd>the name of Table, used as the key in the storage WeakValueDict.</dd>
+<dd>the name of Table.</dd>
 </dl>
 </li>
 <li><dl class="first docutils">
@@ -196,31 +196,10 @@ than 2. Padding can be used for long tedious table.</dd>
 </dl>
 </li>
 <li><dl class="first docutils">
-<dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_col</span></code> (Optional[int])</dt>
-<dd>if None(default), then no padding will be act on the input <cite>table</cite>,
-if provided the n_col is the total column number of the table
-after padding.</dd>
+<dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_col</span></code> (int)</dt>
+<dd>the total column number of the table after padding.</dd>
 </dl>
 </li>
-<li><dl class="first docutils">
-<dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">raw_table</span></code> (Parameter)</dt>
-<dd>the raw table before padding</dd>
-</dl>
-</li>
-</ul>
-</dd>
-<dt>Inputs:</dt>
-<dd><ul class="first last simple">
-<li><dl class="first docutils">
-<dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">index</span></code> (Tensor)</dt>
-<dd>index for index select</dd>
-</dl>
-</li>
-</ul>
-</dd>
-<dt>Shape:</dt>
-<dd><ul class="first last simple">
-<li>index: 1-D</li>
 </ul>
 </dd>
 </dl>
@@ -252,15 +231,16 @@ Constant padding by default.</li>
 <dl class="method">
 <dt id="corona.table.Table.forward">
 <code class="descname">forward</code><span class="sig-paren">(</span><em>index: torch.Tensor</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/table.html#Table.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.table.Table.forward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Although the recipe for forward pass needs to be defined within
-this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>index</strong> – 1-D Tensor, index for index select</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body">rows at <cite>index</cite></td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 </dd></dl>
@@ -268,7 +248,8 @@ registered hooks while the latter silently ignores them.</p>
 <dl class="class">
 <dt id="corona.table.AgeIndexedTable">
 <em class="property">class </em><code class="descname">AgeIndexedTable</code><span class="sig-paren">(</span><em>name: str</em>, <em>table: torch.Tensor</em>, <em>n_col: int = None</em>, <em>*</em>, <em>pad_value: float = 0</em>, <em>pad_mode=0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/table.html#AgeIndexedTable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.table.AgeIndexedTable" title="Permalink to this definition">¶</a></dt>
-<dd><p>Table with <cite>issue age</cite> as index
+<dd><p>Bases: <a class="reference internal" href="#corona.table.Table" title="corona.table.Table"><code class="xref py py-class docutils literal notranslate"><span class="pre">corona.table.Table</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">corona.table.RatioTableBase</span></code></p>
+<p>Table with <cite>issue age</cite> as index
 the result after <cite>benefit term</cite> is set to 0.</p>
 <dl class="docutils">
 <dt>Inputs:</dt>
@@ -280,15 +261,21 @@ the result after <cite>benefit term</cite> is set to 0.</p>
 <dl class="method">
 <dt id="corona.table.AgeIndexedTable.forward">
 <code class="descname">forward</code><span class="sig-paren">(</span><em>mp_idx</em>, <em>mp_val=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/table.html#AgeIndexedTable.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.table.AgeIndexedTable.forward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Although the recipe for forward pass needs to be defined within
-this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>mp_idx</strong> (<em>Tensor</em>) – </li>
+<li><strong>mp_val</strong> (<em>Tensor</em>) – </li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last"></p>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 </dd></dl>
@@ -299,58 +286,44 @@ registered hooks while the latter silently ignores them.</p>
 <dl class="class">
 <dt id="corona.table.LookupTable">
 <em class="property">class </em><code class="descname">LookupTable</code><span class="sig-paren">(</span><em>name: str</em>, <em>table: torch.Tensor</em>, <em>n_col: int = None</em>, <em>*</em>, <em>index_col_num: int = 1</em>, <em>index_table=None</em>, <em>pad_value: float = 0</em>, <em>pad_mode=0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/table.html#LookupTable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.table.LookupTable" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines a LookupTable of parameters of an insurance contract
-or an assumption with padding mechanism
-supported throw <cite>pad_mode</cite> and <cite>pad_value</cite>,</p>
-<p>First the input is converted into row number bu ‘looking up’
-in`index_table` then the rows are selected in <cite>table</cite>
-is not the row number of table.</p>
+<dd><p>Bases: <a class="reference internal" href="#corona.table.Table" title="corona.table.Table"><code class="xref py py-class docutils literal notranslate"><span class="pre">corona.table.Table</span></code></a></p>
+<p>Defines a LookupTable of parameters of an insurance contract
+or an assumption with padding mechanism.</p>
+<p>First the input is converted into row number by ‘looking up’
+in <cite>index_table</cite> then the rows are selected in <cite>table</cite>.</p>
 <div class="math notranslate nohighlight">
 \[\text{out}_{i, j} =
    \text{table}_{\text{index_table}[\text{lookup}], \;  j} \]</div>
-<p>instances will be kept in a WeakValueDict, with their names as keys.</p>
-<p>All Table are inherited from this class.</p>
+<p>All LookupTable Tables are inherited from this class.</p>
 <dl class="docutils">
 <dt>Attributes:</dt>
 <dd><ul class="first last simple">
 <li><dl class="first docutils">
 <dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">name</span></code> (str)</dt>
-<dd>the name of Table, used as the key in the storage WeakValueDict.</dd>
+<dd>the name of Table.</dd>
 </dl>
 </li>
 <li><dl class="first docutils">
 <dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">table</span></code> (Tensor)</dt>
-<dd>the table will be indexed, the dim of the table should be not more
+<dd>the table will be indexed, the dim of the table should be no more
 than 2. Padding can be used for long tedious table.</dd>
 </dl>
 </li>
 <li><dl class="first docutils">
 <dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">index_table</span></code></dt>
-<dd>table storage the row index of lookup value</dd>
+<dd>the row index of lookup value</dd>
 </dl>
 </li>
 <li><dl class="first docutils">
-<dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_col</span></code> (Optional[int])</dt>
-<dd>if None(default), then no padding will be act on the input <cite>table</cite>,
-if provided the n_col is the total column number of the table
-after padding.</dd>
-</dl>
-</li>
-<li><dl class="first docutils">
-<dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">raw_table</span></code> (Parameter)</dt>
-<dd>the raw table before padding</dd>
-</dl>
-</li>
-<li><dl class="first docutils">
-<dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">raw_index_table</span></code> (SparseTensor)</dt>
-<dd>sparse version of <code class="xref py py-attr docutils literal notranslate"><span class="pre">index_table</span></code></dd>
+<dt><code class="xref py py-attr docutils literal notranslate"><span class="pre">n_col</span></code> (int)</dt>
+<dd>the total column number of the table after padding.</dd>
 </dl>
 </li>
 </ul>
 </dd>
 <dt>Inputs:</dt>
 <dd><ul class="first last simple">
-<li><code class="xref py py-attr docutils literal notranslate"><span class="pre">lookup</span></code> (Tensor): lookup value for index select</li>
+<li><code class="xref py py-attr docutils literal notranslate"><span class="pre">lookup</span></code> (Tensor):</li>
 </ul>
 </dd>
 <dt>Shape:</dt>
@@ -395,15 +368,14 @@ Constant padding by default.</li>
 <dl class="method">
 <dt id="corona.table.LookupTable.forward">
 <code class="descname">forward</code><span class="sig-paren">(</span><em>lookup: torch.Tensor</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/table.html#LookupTable.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.table.LookupTable.forward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Although the recipe for forward pass needs to be defined within
-this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>lookup</strong> (<em>Tensor</em>) – lookup value for index select</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 </dd></dl>
@@ -411,7 +383,8 @@ registered hooks while the latter silently ignores them.</p>
 <dl class="class">
 <dt id="corona.table.PmtLookupTable">
 <em class="property">class </em><code class="descname">PmtLookupTable</code><span class="sig-paren">(</span><em>name: str</em>, <em>table: torch.Tensor</em>, <em>n_col: int = None</em>, <em>*</em>, <em>index_col_num: int = 1</em>, <em>index_table=None</em>, <em>pad_value: float = 0</em>, <em>pad_mode=0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/table.html#PmtLookupTable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.table.PmtLookupTable" title="Permalink to this definition">¶</a></dt>
-<dd><p>LookupTable with <cite>payment term</cite> as the lookup key
+<dd><p>Bases: <a class="reference internal" href="#corona.table.LookupTable" title="corona.table.LookupTable"><code class="xref py py-class docutils literal notranslate"><span class="pre">corona.table.LookupTable</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">corona.table.RatioTableBase</span></code></p>
+<p>LookupTable with <cite>payment term</cite> as the lookup key
 the result after <cite>benefit term</cite> is set to 0.</p>
 <dl class="docutils">
 <dt>Inputs:</dt>
@@ -423,15 +396,21 @@ the result after <cite>benefit term</cite> is set to 0.</p>
 <dl class="method">
 <dt id="corona.table.PmtLookupTable.forward">
 <code class="descname">forward</code><span class="sig-paren">(</span><em>mp_idx</em>, <em>mp_val=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/table.html#PmtLookupTable.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.table.PmtLookupTable.forward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Although the recipe for forward pass needs to be defined within
-this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>mp_idx</strong> (<em>Tensor</em>) – </li>
+<li><strong>mp_val</strong> (<em>Tensor</em>) – </li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last"></p>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 </dd></dl>
@@ -439,7 +418,8 @@ registered hooks while the latter silently ignores them.</p>
 <dl class="class">
 <dt id="corona.table.PmtAgeLookupTable">
 <em class="property">class </em><code class="descname">PmtAgeLookupTable</code><span class="sig-paren">(</span><em>name: str</em>, <em>table: torch.Tensor</em>, <em>n_col: int = None</em>, <em>*</em>, <em>index_col_num: int = 1</em>, <em>index_table=None</em>, <em>pad_value: float = 0</em>, <em>pad_mode=0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/table.html#PmtAgeLookupTable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.table.PmtAgeLookupTable" title="Permalink to this definition">¶</a></dt>
-<dd><p>LookupTable with <cite>payment term</cite> and <cite>issue age</cite> as the lookup key
+<dd><p>Bases: <a class="reference internal" href="#corona.table.LookupTable" title="corona.table.LookupTable"><code class="xref py py-class docutils literal notranslate"><span class="pre">corona.table.LookupTable</span></code></a>, <code class="xref py py-class docutils literal notranslate"><span class="pre">corona.table.RatioTableBase</span></code></p>
+<p>LookupTable with <cite>payment term</cite> and <cite>issue age</cite> as the lookup key
 the result after <cite>benefit term</cite> is set to 0.</p>
 <dl class="docutils">
 <dt>Inputs:</dt>
@@ -451,15 +431,21 @@ the result after <cite>benefit term</cite> is set to 0.</p>
 <dl class="method">
 <dt id="corona.table.PmtAgeLookupTable.forward">
 <code class="descname">forward</code><span class="sig-paren">(</span><em>mp_idx</em>, <em>mp_val=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/corona/table.html#PmtAgeLookupTable.forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#corona.table.PmtAgeLookupTable.forward" title="Permalink to this definition">¶</a></dt>
-<dd><p>Defines the computation performed at every call.</p>
-<p>Should be overridden by all subclasses.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Although the recipe for forward pass needs to be defined within
-this function, one should call the <code class="xref py py-class docutils literal notranslate"><span class="pre">Module</span></code> instance afterwards
-instead of this since the former takes care of running the
-registered hooks while the latter silently ignores them.</p>
-</div>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>mp_idx</strong> (<em>Tensor</em>) – </li>
+<li><strong>mp_val</strong> (<em>Tensor</em>) – </li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last"></p>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 </dd></dl>

@@ -233,15 +233,14 @@
 <span class="sd">        </span>
 <span class="sd">        Typical contexts are *PRICING*, *GAAP*, *CROSS*, etc.</span>
 
-<span class="sd">        When we refer to *dicount rate* or *probability* in the *PRICING* context, we mean</span>
+<span class="sd">        When we refer to *discount rate* or *probability* in the *PRICING* context, we mean</span>
 <span class="sd">        the discount rate and probabilities used in calculating the *gross premium* and *cash value*.</span>
 
-<span class="sd">        Whats more, in different contexts, a cash flow may alse have different meanings. For example, within the *GAAP* context,</span>
+<span class="sd">        Whats more, in different contexts, a cash flow may also have different meanings. For example, within the *GAAP* context,</span>
 <span class="sd">        cashflows come from the linked account of a product whose design type is Universal is 0. Another case</span>
 <span class="sd">        is the credit rate. When we test how our company will be like under different </span>
 
 <span class="sd">#. mth_converter</span>
-
 
 
 <span class="sd">Clause Group</span>
@@ -274,21 +273,23 @@
 <span class="kn">import</span> <span class="nn">random</span>
 <span class="kn">import</span> <span class="nn">weakref</span>
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
-<span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">reduce</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">reduce</span><span class="p">,</span> <span class="n">lru_cache</span>
 <span class="kn">from</span> <span class="nn">operator</span> <span class="k">import</span> <span class="n">mul</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="k">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Optional</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="k">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">Dict</span>
 <span class="kn">from</span> <span class="nn">contextlib</span> <span class="k">import</span> <span class="n">ExitStack</span>
 
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">torch</span>
-<span class="kn">from</span> <span class="nn">cytoolz</span> <span class="k">import</span> <span class="n">isiterable</span><span class="p">,</span> <span class="n">pluck</span><span class="p">,</span> <span class="n">accumulate</span><span class="p">,</span> <span class="n">valfilter</span><span class="p">,</span> <span class="n">valmap</span>
+<span class="kn">from</span> <span class="nn">cytoolz</span> <span class="k">import</span> <span class="n">isiterable</span><span class="p">,</span> <span class="n">accumulate</span><span class="p">,</span> <span class="n">valfilter</span>
 <span class="kn">from</span> <span class="nn">torch.nn</span> <span class="k">import</span> <span class="n">Module</span>
 
 <span class="kn">from</span> <span class="nn">corona.conf</span> <span class="k">import</span> <span class="n">MAX_YR_LEN</span>
 <span class="kn">from</span> <span class="nn">corona.utils</span> <span class="k">import</span> <span class="n">CF2M</span><span class="p">,</span> <span class="n">repeat</span><span class="p">,</span> <span class="n">account_value</span><span class="p">,</span> <span class="n">make_model_dict</span><span class="p">,</span> <span class="n">Lambda</span><span class="p">,</span> \
-    <span class="n">make_parameter</span><span class="p">,</span> <span class="n">ClauseReferable</span><span class="p">,</span> <span class="n">ContractReferable</span><span class="p">,</span> <span class="n">ModuleDict</span><span class="p">,</span> <span class="n">CResult</span>
+    <span class="n">make_parameter</span><span class="p">,</span> <span class="n">ClauseReferable</span><span class="p">,</span> <span class="n">ContractReferable</span><span class="p">,</span> <span class="n">ModuleDict</span><span class="p">,</span> <span class="n">CashFlow</span><span class="p">,</span> \
+    <span class="n">time_push</span><span class="p">,</span> <span class="n">GResult</span><span class="p">,</span> <span class="n">time_slice</span>
 
 
+<span class="nd">@lru_cache</span><span class="p">(</span><span class="mi">128</span><span class="p">)</span>
 <span class="k">def</span> <span class="nf">parse_context</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">if</span> <span class="s1">&#39;@&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">context</span><span class="p">:</span>
@@ -300,37 +301,83 @@
         <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
 
 
-<div class="viewcode-block" id="Clause"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.Clause">[docs]</a><span class="k">class</span> <span class="nc">Clause</span><span class="p">(</span><span class="n">Module</span><span class="p">,</span> <span class="n">ContractReferable</span><span class="p">):</span>
+<span class="k">class</span> <span class="nc">ClauseLike</span><span class="p">:</span>
+    <span class="k">pass</span>
+
+
+<div class="viewcode-block" id="Clause"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.Clause">[docs]</a><span class="k">class</span> <span class="nc">Clause</span><span class="p">(</span><span class="n">Module</span><span class="p">,</span> <span class="n">ContractReferable</span><span class="p">,</span> <span class="n">ClauseLike</span><span class="p">):</span>
     <span class="sd">r&quot;&quot;&quot; A typical Clause of an insurance contract.</span>
 
 <span class="sd">    Attributes:</span>
 <span class="sd">        - :attr:`name` (str)</span>
 <span class="sd">           name of the clause, should be unique in the contract it belongs to</span>
-<span class="sd">        - :attr:`prob_assumptions` (ModuleList)</span>
-<span class="sd">           probability modules attached</span>
+<span class="sd">        - :attr:`base` (:class:`BaseConverter`)</span>
+<span class="sd">           base of the clause, calculate the value with the ratio will multiply to.</span>
+<span class="sd">        - :attr:`t_offset` (float) time offset.</span>
+<span class="sd">           For example, if t_offset=0.5, the clause is assumed to be triggered</span>
+<span class="sd">           at the middle of a month in a monthly module</span>
+<span class="sd">           or at the middle of a year in an annual module.</span>
+<span class="sd">           **This value is used in discounting cash flow in other modules**</span>
+<span class="sd">        - :attr:`ratio_tables` (:class:`~utils.ModuleDict`)</span>
+<span class="sd">           A Module holds modules to calculation the ratio of `base` under some context</span>
+<span class="sd">        - :attr:`prob_tables` (:class:`~utils.ModuleDict`)</span>
+<span class="sd">           A Module holds modules to lookup probability under some context</span>
 <span class="sd">        - :attr:`default_context` (str)</span>
-<span class="sd">        - :attr:`mth_converter` (Union[Module, int])</span>
-<span class="sd">           module convert annual cash flow to monthly whether cash flow, if</span>
-<span class="sd">           `monthly_converter` is integer or None then</span>
-<span class="sd">           :class:`corona.util.CF2M` is used</span>
-<span class="sd">        - :attr:`virtual` (bool) whether if the prob of this clause will not involved in</span>
-<span class="sd">           *in force* or *lx* calculation.</span>
-<span class="sd">        - :attr:`contexts_exclude` (set) set of context names in which</span>
-<span class="sd">           this clause&#39;s cash flow is excluded or treat as zero,</span>
-<span class="sd">           but the probability is still in consideration.</span>
+<span class="sd">           The fallback context when the assumption of current contest is not found.</span>
+<span class="sd">        - :attr:`mth_converter` (:class:`~torch.nn.Module`)</span>
+<span class="sd">           module convert annual cash flow to monthly cash flow,</span>
+<span class="sd">        - :attr:`virtual` (bool)</span>
+<span class="sd">           whether if the prob of this clause will not involved in *in force* or *lx* calculation.</span>
+<span class="sd">           for example a clause represents survival benefit should be virtual.</span>
+<span class="sd">        - :attr:`contexts_exclude` (Callable)</span>
+<span class="sd">           judging whether this clause&#39;s cash flow is excluded or treat as zero under the input context,</span>
+<span class="sd">           *but the probability is still in consideration.*</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">ratio_tables</span><span class="p">,</span> <span class="n">base</span><span class="p">:</span> <span class="n">Callable</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                 <span class="o">*</span><span class="p">,</span> <span class="n">mth_converter</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<div class="viewcode-block" id="Clause.__init__"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.Clause.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">ratio_tables</span><span class="p">,</span> <span class="n">base</span><span class="p">,</span> <span class="n">t_offset</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">mth_converter</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                  <span class="n">prob_tables</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">default_context</span><span class="o">=</span><span class="s1">&#39;DEFAULT&#39;</span><span class="p">,</span> <span class="n">virtual</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
                  <span class="n">contexts_exclude</span><span class="o">=</span><span class="p">()):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">        :param str name: name of the clause</span>
+<span class="sd">        :param ratio_tables: input can be both A dict and a single module.</span>
+<span class="sd">           if the input is a dict, the keys should be contexts.</span>
+<span class="sd">           if the input is a single module, the `default_context` is treated as the key</span>
+<span class="sd">           if the input is a float, then it will convert to a module using :class:`~util.Lambda`, acting like a</span>
+<span class="sd">           constant multiplier.</span>
+<span class="sd">        :type ratio_tables: Module or dict[str, Module] or float</span>
+<span class="sd">        :param base: base of the clause, calculate the value with the ratio will multiply to.</span>
+<span class="sd">           input can be a  :class:`BaseConverter` or integer.</span>
+<span class="sd">           if the input is a integer, the base of the clause will be a :class:`BaseSelector`.</span>
+<span class="sd">        :type base: int or BaseConverter</span>
+<span class="sd">        :param float t_offset: time offset</span>
+<span class="sd">        :param mth_converter: input can be both A module and a integer.</span>
+<span class="sd">           if `monthly_converter` is integer or None then :class:`~util.CF2M` is used.</span>
+<span class="sd">           you can use :class:`~util.Lambda` wrap a callable</span>
+<span class="sd">        :type mth_converter: Module or int</span>
+<span class="sd">        :param prob_tables: input can be both A dict and a single module.</span>
+<span class="sd">           if the input is a dict, the keys should be contexts.</span>
+<span class="sd">           if the input is a single module, the `default_context` is treated as the key</span>
+<span class="sd">        :type prob_tables: Module or dict[str, Module]</span>
+<span class="sd">        :param str default_context: default context, Default &#39;DEFAULT&#39;</span>
+<span class="sd">        :param bool virtual: default `False`</span>
+<span class="sd">        :param contexts_exclude: contexts under which the cash flow of this clause should be excluded.</span>
+<span class="sd">           Input can be a string, an iterable or a callable.</span>
+
+<span class="sd">               - str: can be a single context or contexts separated by comma. if the string is started with `~`, the semantics is *&#39;exclude except&#39;*.</span>
+<span class="sd">               - iterable: contexts of the iterable is excluded</span>
+<span class="sd">               - callable: returns `True` if the cash flow should be excluded under the input context.</span>
+<span class="sd">        :type contexts_exclude: str or Iterable[str] or Callable</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">default_context</span> <span class="o">=</span> <span class="n">default_context</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">t_offset</span> <span class="o">=</span> <span class="n">t_offset</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">virtual</span> <span class="o">=</span> <span class="n">virtual</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">contexts_exclude</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_context_exclude_repr</span> <span class="o">=</span> <span class="n">contexts_exclude</span>
-            <span class="k">if</span> <span class="n">contexts_exclude</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;~&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">contexts_exclude</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;~&#39;</span><span class="p">):</span>
                 <span class="n">_context_exclude</span> <span class="o">=</span> <span class="nb">set</span><span class="p">((</span><span class="n">x</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">contexts_exclude</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)))</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">contexts_exclude</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_context_exclude</span>
             <span class="k">else</span><span class="p">:</span>
@@ -373,45 +420,77 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">mth_converter</span> <span class="o">=</span> <span class="n">mth_converter</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">_setup_clause_ref</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_setup_clause_ref</span><span class="p">()</span></div>
 
     <span class="k">def</span> <span class="nf">_setup_clause_ref</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">for</span> <span class="n">md</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">modules</span><span class="p">():</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">md</span><span class="p">,</span> <span class="n">ClauseReferable</span><span class="p">):</span>
                 <span class="n">md</span><span class="o">.</span><span class="n">set_clause_ref</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 
-    <span class="k">def</span> <span class="nf">calc_ratio</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">annual</span><span class="p">):</span>
+<div class="viewcode-block" id="Clause.calc_ratio"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.Clause.calc_ratio">[docs]</a>    <span class="k">def</span> <span class="nf">calc_ratio</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">annual</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Calculate ratio of modelpoint under some context</span>
+
+<span class="sd">        :param Tensor mp_idx: index part of model point</span>
+<span class="sd">        :param Tensor mp_val: value part of model point</span>
+<span class="sd">        :param str context: calculation context</span>
+<span class="sd">        :param bool annual: annual or monthly result</span>
+<span class="sd">        :return: ratio</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">r</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ratio_tables</span><span class="p">[</span><span class="n">context</span><span class="p">](</span><span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">r</span> <span class="k">if</span> <span class="n">annual</span> <span class="k">else</span> <span class="n">repeat</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="mi">12</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">r</span> <span class="k">if</span> <span class="n">annual</span> <span class="k">else</span> <span class="n">repeat</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="mi">12</span><span class="p">)</span></div>
 
-    <span class="k">def</span> <span class="nf">calc_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">annual</span><span class="p">):</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">prob_tables</span><span class="p">[</span><span class="n">context</span><span class="p">](</span><span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">annual</span><span class="o">=</span><span class="n">annual</span><span class="p">)</span>
+<div class="viewcode-block" id="Clause.calc_prob"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.Clause.calc_prob">[docs]</a>    <span class="k">def</span> <span class="nf">calc_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">annual</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Calculate probability of modelpoint under some context</span>
 
-<div class="viewcode-block" id="Clause.forward"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.Clause.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">annual</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">calculator_results</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="sd">        :param Tensor mp_idx: index part of model point</span>
+<span class="sd">        :param Tensor mp_val: value part of model point</span>
+<span class="sd">        :param str context: calculation context</span>
+<span class="sd">        :param bool annual: annual or monthly result</span>
+<span class="sd">        :return: probability</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">prob_tables</span><span class="p">[</span><span class="n">context</span><span class="p">](</span><span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">annual</span><span class="o">=</span><span class="n">annual</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Clause.forward"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.Clause.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">annual</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span>
+                <span class="n">calculator_results</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Cash flow calculation.</span>
+
+<span class="sd">        :param Tensor mp_idx: index part of model point</span>
+<span class="sd">        :param Tensor mp_val: value part of model point</span>
+<span class="sd">        :param str context: calculation context</span>
+<span class="sd">        :param bool annual: annual or monthly result</span>
+<span class="sd">        :param calculator_results:</span>
+<span class="sd">        :type calculator_results: dict[str, Tensor]</span>
+<span class="sd">        :return: cash flow detail</span>
+<span class="sd">        :rtype: CashFlow</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">pattern</span><span class="p">,</span> <span class="n">context</span> <span class="o">=</span> <span class="n">parse_context</span><span class="p">(</span><span class="n">context</span><span class="p">)</span>
         <span class="n">p</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">calc_prob</span><span class="p">(</span><span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">annual</span><span class="p">)</span>
-        <span class="n">r</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">calc_ratio</span><span class="p">(</span><span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">annual</span><span class="p">)</span>
-        <span class="n">val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="p">(</span><span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="p">)</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">annual</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="p">,</span> <span class="n">AccountValue</span><span class="p">):</span>
-            <span class="n">val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mth_converter</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
-        <span class="n">cf</span> <span class="o">=</span> <span class="n">r</span> <span class="o">*</span> <span class="n">val</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">contexts_exclude</span><span class="p">(</span><span class="n">context</span><span class="p">):</span>
-            <span class="n">pcf</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="k">elif</span> <span class="n">pattern</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">pattern</span><span class="o">.</span><span class="n">fullmatch</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">):</span>
-            <span class="n">pcf</span> <span class="o">=</span> <span class="n">cf</span> <span class="o">*</span> <span class="n">p</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">pcf</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="k">return</span> <span class="n">CResult</span><span class="p">(</span><span class="n">pcf</span><span class="p">,</span> <span class="n">cf</span><span class="p">,</span> <span class="p">(</span><span class="n">mp_val</span><span class="o">.</span><span class="n">new_zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">,))</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">virtual</span> <span class="k">else</span> <span class="n">p</span><span class="p">))</span></div>
 
-<div class="viewcode-block" id="Clause.extra_repr"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.Clause.extra_repr">[docs]</a>    <span class="k">def</span> <span class="nf">extra_repr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">contexts_exclude</span><span class="p">(</span><span class="n">context</span><span class="p">):</span>
+            <span class="n">cf</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">elif</span> <span class="n">pattern</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">pattern</span><span class="o">.</span><span class="n">fullmatch</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">):</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">calc_ratio</span><span class="p">(</span><span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">annual</span><span class="p">)</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="p">(</span><span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">annual</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base</span><span class="p">,</span> <span class="n">AccountValue</span><span class="p">):</span>
+                <span class="n">val</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mth_converter</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+            <span class="n">cf</span> <span class="o">=</span> <span class="n">r</span> <span class="o">*</span> <span class="n">val</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">cf</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="n">qx</span> <span class="o">=</span> <span class="n">mp_val</span><span class="o">.</span><span class="n">new_zeros</span><span class="p">((</span><span class="mi">1</span><span class="p">,))</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">virtual</span> <span class="k">else</span> <span class="n">p</span>
+
+        <span class="k">return</span> <span class="n">CashFlow</span><span class="p">(</span><span class="n">cf</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">qx</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">t_offset</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">extra_repr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="s2">&quot;$NAME$: </span><span class="si">{}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="o">+</span>\
                <span class="s2">&quot;$VIRTUAL$: </span><span class="si">{}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">virtual</span><span class="p">)</span> <span class="o">+</span> \
                <span class="s2">&quot;$DEFAULT_CONTEXT$: </span><span class="si">{}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">default_context</span><span class="p">)</span> <span class="o">+</span> \
-               <span class="s2">&quot;$CONTEXTS_EXCLUDE$: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_context_exclude_repr</span><span class="p">)</span></div></div>
+               <span class="s2">&quot;$CONTEXTS_EXCLUDE$: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_context_exclude_repr</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="SideEffect"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.SideEffect">[docs]</a><span class="k">class</span> <span class="nc">SideEffect</span><span class="p">:</span>
-
+    <span class="sd">&quot;&quot;&quot;Side effect of a impure :class:`DirtyClause`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">clause</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="sd">&quot;&quot;&quot;weak proxy of the dirty clause&quot;&quot;&quot;</span>
@@ -425,8 +504,10 @@
 
 
 <div class="viewcode-block" id="ChangeAccountValue"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.ChangeAccountValue">[docs]</a><span class="k">class</span> <span class="nc">ChangeAccountValue</span><span class="p">(</span><span class="n">SideEffect</span><span class="p">):</span>
-
-    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">contract</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;SideEffect that will change the account value.</span>
+<span class="sd">    Used in account value calculation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="ChangeAccountValue.__call__"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.ChangeAccountValue.__call__">[docs]</a>    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">contract</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        :param Contract contract:</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -438,11 +519,11 @@
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">AccountValue</span><span class="p">)</span> <span class="ow">and</span> <span class="n">base</span><span class="o">.</span><span class="n">key</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="n">base</span><span class="o">.</span><span class="n">key</span> <span class="o">=</span> <span class="n">AccountValueCalculator</span><span class="o">.</span><span class="n">INITIAL_AV_KEY</span>
             <span class="k">elif</span> <span class="n">hit_the_clause</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">AccountValue</span><span class="p">):</span>
-                <span class="n">base</span><span class="o">.</span><span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">clause</span><span class="o">.</span><span class="n">name</span></div>
+                <span class="n">base</span><span class="o">.</span><span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">clause</span><span class="o">.</span><span class="n">name</span></div></div>
 
 
 <div class="viewcode-block" id="DirtyClause"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.DirtyClause">[docs]</a><span class="k">class</span> <span class="nc">DirtyClause</span><span class="p">(</span><span class="n">Clause</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;A Clause that is impure and has side effects</span>
+    <span class="sd">&quot;&quot;&quot;A Clause that is impure and has a :class:`SideEffect`</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">side_effect</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
@@ -450,57 +531,69 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">side_effect</span> <span class="o">=</span> <span class="n">side_effect</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">side_effect</span><span class="o">.</span><span class="n">clause</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">proxy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
 
-<div class="viewcode-block" id="DirtyClause.extra_repr"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.DirtyClause.extra_repr">[docs]</a>    <span class="k">def</span> <span class="nf">extra_repr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">extra_repr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">rst</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">extra_repr</span><span class="p">()</span>
-        <span class="k">return</span> <span class="n">rst</span> <span class="o">+</span> <span class="n">f</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">$SIDE_EFFECT$: </span><span class="si">{self.side_effect.name}</span><span class="s1">&#39;</span></div></div>
+        <span class="k">return</span> <span class="n">rst</span> <span class="o">+</span> <span class="n">f</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">$SIDE_EFFECT$: </span><span class="si">{self.side_effect.name}</span><span class="s1">&#39;</span></div>
 
 
 <span class="k">class</span> <span class="nc">AClause</span><span class="p">(</span><span class="n">DirtyClause</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;A Clause that will change the Account Value of the contract</span>
+    <span class="sd">&quot;&quot;&quot;:class:`DirtyClause` that will change the Account Value of the contract.</span>
+<span class="sd">    with :class:`ChangeAccountValue` as SideEffect</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">side_effect</span><span class="o">=</span><span class="n">ChangeAccountValue</span><span class="p">(),</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="ClauseGroup"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.ClauseGroup">[docs]</a><span class="k">class</span> <span class="nc">ClauseGroup</span><span class="p">(</span><span class="n">ModuleDict</span><span class="p">):</span>
+<div class="viewcode-block" id="ClauseGroup"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.ClauseGroup">[docs]</a><span class="k">class</span> <span class="nc">ClauseGroup</span><span class="p">(</span><span class="n">ModuleDict</span><span class="p">,</span> <span class="n">ClauseLike</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot; Base of all Clause containers</span>
+<span class="sd">    :class:`ParallelGroup` and :class:`SequentialGroup` inherit directly from this class.</span>
+
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">clause</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<div class="viewcode-block" id="ClauseGroup.__init__"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.ClauseGroup.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">clause</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        :param clause: list of clause like objects including Clause,</span>
-<span class="sd">            ParallelGroup etc</span>
+<span class="sd">        :param clause: clause like objects including :class:`Clause`,</span>
+<span class="sd">            :class:`ParallelGroup`, :class:`SequentialGroup` etc</span>
 <span class="sd">        :param name: a optional name of this group</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">clause</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">isiterable</span><span class="p">(</span><span class="n">clause</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
             <span class="n">clause</span> <span class="o">=</span> <span class="n">clause</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
         <span class="n">d</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">(((</span><span class="n">n</span><span class="p">,</span> <span class="n">cl</span><span class="p">)</span> <span class="k">for</span> <span class="n">cl</span><span class="p">,</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">clause</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_dict_name</span><span class="p">(</span><span class="n">clause</span><span class="p">))))</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span></div>
 
 <div class="viewcode-block" id="ClauseGroup.clauses"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.ClauseGroup.clauses">[docs]</a>    <span class="k">def</span> <span class="nf">clauses</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Clauses contained directly in this group.</span>
+
+<span class="sd">        :rtype: Iterable[Clause]</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">md</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">md</span><span class="p">,</span> <span class="n">Clause</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">children</span><span class="p">())</span></div>
 
 <div class="viewcode-block" id="ClauseGroup.named_clauses"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.ClauseGroup.named_clauses">[docs]</a>    <span class="k">def</span> <span class="nf">named_clauses</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">-&gt;</span><span class="nb">dict</span><span class="p">:</span>
         <span class="sd">&quot;&quot;&quot;Dict of clauses contained directly in this group with name as key.</span>
+
+<span class="sd">        :rtype: Dict[str, Clause]</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">valfilter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">md</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">md</span><span class="p">,</span> <span class="n">Clause</span><span class="p">),</span> <span class="nb">dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">named_children</span><span class="p">()))</span></div>
 
 <div class="viewcode-block" id="ClauseGroup.clause_groups"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.ClauseGroup.clause_groups">[docs]</a>    <span class="k">def</span> <span class="nf">clause_groups</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Subgroup of clauses contained directly in this group.</span>
+
+<span class="sd">        :rtype: Iterable[ClauseGroup]</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="nb">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">md</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">md</span><span class="p">,</span> <span class="n">ClauseGroup</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">children</span><span class="p">())</span></div>
 
 <div class="viewcode-block" id="ClauseGroup.named_clause_groups"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.ClauseGroup.named_clause_groups">[docs]</a>    <span class="k">def</span> <span class="nf">named_clause_groups</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">-&gt;</span><span class="nb">dict</span><span class="p">:</span>
         <span class="sd">&quot;&quot;&quot;Dict of subgroup of clauses contained directly in this group with name as key.</span>
+
+<span class="sd">        :rtype: Dict[str, ClauseGroup]</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">valfilter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">md</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">md</span><span class="p">,</span> <span class="n">ClauseGroup</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">named_children</span><span class="p">())</span></div>
 
 <div class="viewcode-block" id="ClauseGroup.search_clause"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.ClauseGroup.search_clause">[docs]</a>    <span class="k">def</span> <span class="nf">search_clause</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Get clause by name. It will search among all claused contained in this group,</span>
+        <span class="sd">&quot;&quot;&quot;Get clause by name. It will search among all clauses contained in this group,</span>
 <span class="sd">        including those contained by sub groups</span>
+
+<span class="sd">        :rtype: Clause</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">named_clauses</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">named_clauses</span><span class="p">()</span>
         <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">named_clauses</span><span class="p">:</span>
@@ -515,6 +608,8 @@
 
 <div class="viewcode-block" id="ClauseGroup.all_clauses"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.ClauseGroup.all_clauses">[docs]</a>    <span class="k">def</span> <span class="nf">all_clauses</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;iterator of all clauses contained in this group.</span>
+
+<span class="sd">        :rtype: Iterable[Clause]</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">for</span> <span class="n">cl</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">children</span><span class="p">():</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cl</span><span class="p">,</span> <span class="n">Clause</span><span class="p">):</span>
@@ -534,26 +629,48 @@
                 <span class="n">d</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span>
                 <span class="k">yield</span> <span class="n">f</span><span class="s1">&#39;</span><span class="si">{name}</span><span class="s1">#</span><span class="si">{i}</span><span class="s1">&#39;</span>
 
-<div class="viewcode-block" id="ClauseGroup.forward"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.ClauseGroup.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">valmap</span><span class="p">(</span><span class="k">lambda</span> <span class="n">md</span><span class="p">:</span> <span class="n">md</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">),</span>
-                      <span class="n">valfilter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">md</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">md</span><span class="p">,</span> <span class="n">Clause</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">md</span><span class="p">,</span> <span class="n">ClauseGroup</span><span class="p">),</span>
-                                <span class="bp">self</span><span class="o">.</span><span class="n">_modules</span><span class="p">))</span></div></div>
+<div class="viewcode-block" id="ClauseGroup.raw_result"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.ClauseGroup.raw_result">[docs]</a>    <span class="k">def</span> <span class="nf">raw_result</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Calc and return all results of children model</span>
+
+<span class="sd">        :return: unmodified GResult</span>
+<span class="sd">        :rtype: GResult</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">GResult</span><span class="p">(</span><span class="n">OrderedDict</span><span class="p">(((</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">))</span>
+                                    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_modules</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">ClauseLike</span><span class="p">))))</span></div>
+
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
 
 
 <div class="viewcode-block" id="ParallelGroup"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.ParallelGroup">[docs]</a><span class="k">class</span> <span class="nc">ParallelGroup</span><span class="p">(</span><span class="n">ClauseGroup</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot; A container define a list of &quot;Clause&quot; like objects with the order plays</span>
 <span class="sd">    make no difference to calculation. The clauses within are independent.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">clause</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">clause</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">clause</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">t_offset</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;t_offset&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">t_offset</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">cl</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">clauses</span><span class="p">():</span>
+                <span class="n">cl</span><span class="o">.</span><span class="n">t_offset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">t_offset</span>
 
-<div class="viewcode-block" id="ParallelGroup.forward"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.ParallelGroup.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">annual</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">calculator_results</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="n">simple_results</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">annual</span><span class="p">,</span> <span class="n">calculator_results</span><span class="o">=</span><span class="n">calculator_results</span><span class="p">)</span>
-        <span class="n">sub_results</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">simple_results</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
-        <span class="n">icf</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">pluck</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">sub_results</span><span class="p">))</span>
-        <span class="n">cf</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">pluck</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">sub_results</span><span class="p">))</span>
-        <span class="n">p</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">pluck</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">sub_results</span><span class="p">))</span>
-        <span class="k">return</span> <span class="n">CResult</span><span class="p">(</span><span class="n">icf</span><span class="p">,</span> <span class="n">cf</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span></div></div>
+<div class="viewcode-block" id="ParallelGroup.forward"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.ParallelGroup.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">annual</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="o">*</span><span class="p">,</span> <span class="n">calculator_results</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">        :param Tensor mp_idx: index part of model point</span>
+<span class="sd">        :param Tensor mp_val: value part of model point</span>
+<span class="sd">        :param str context: calculation context</span>
+<span class="sd">        :param bool annual: annual or monthly result</span>
+<span class="sd">        :param calculator_results:</span>
+<span class="sd">        :type calculator_results: dict[str, Tensor]</span>
+<span class="sd">        :return: group result of cash flow detail</span>
+<span class="sd">        :rtype: GResult</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">raw_result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">raw_result</span><span class="p">(</span><span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">annual</span><span class="p">,</span>
+                                     <span class="n">calculator_results</span><span class="o">=</span><span class="n">calculator_results</span><span class="p">)</span>
+        <span class="n">qx</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">((</span><span class="n">r</span><span class="o">.</span><span class="n">qx</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">raw_result</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+        <span class="n">raw_result</span><span class="o">.</span><span class="n">qx</span> <span class="o">=</span> <span class="n">qx</span>
+        <span class="k">return</span> <span class="n">raw_result</span></div></div>
 
 
 <div class="viewcode-block" id="SequentialGroup"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.SequentialGroup">[docs]</a><span class="k">class</span> <span class="nc">SequentialGroup</span><span class="p">(</span><span class="n">ClauseGroup</span><span class="p">):</span>
@@ -574,12 +691,12 @@
 <span class="sd">       #. list of probability (of kicked off from in force) tensors</span>
 <span class="sd">       #. the context name</span>
 
-<span class="sd">       And returns a list of tensor represents the inforce number just</span>
+<span class="sd">       And returns a list of tensor represents the number of in force just</span>
 <span class="sd">       before the clause can be triggered  i.e. *px*.</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="c1"># noinspection PyArgumentList</span>
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">clause</span><span class="p">,</span> <span class="n">copula</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<div class="viewcode-block" id="SequentialGroup.__init__"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.SequentialGroup.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">clause</span><span class="p">,</span> <span class="n">copula</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        :param clause: list of clause like objects including Clause,</span>
 <span class="sd">            ParallelGroup etc</span>
@@ -590,20 +707,31 @@
         <span class="k">if</span> <span class="n">copula</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">copula</span> <span class="o">=</span> <span class="n">Lambda</span><span class="p">(</span><span class="k">lambda</span> <span class="n">lst</span><span class="p">,</span> <span class="n">context</span><span class="p">:</span>
                                  <span class="nb">list</span><span class="p">(</span><span class="n">accumulate</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">lst</span><span class="p">),</span>
-                                                 <span class="n">initial</span><span class="o">=</span><span class="mi">1</span><span class="p">))[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+                                                 <span class="n">initial</span><span class="o">=</span><span class="mi">1</span><span class="p">)),</span>
                                  <span class="n">repre</span><span class="o">=</span><span class="s1">&#39;DefaultCopula&#39;</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">copula</span> <span class="o">=</span> <span class="n">copula</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">copula</span> <span class="o">=</span> <span class="n">copula</span></div>
 
 <div class="viewcode-block" id="SequentialGroup.forward"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.SequentialGroup.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">annual</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">calculator_results</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="n">simple_results</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">forward</span><span class="p">(</span><span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">annual</span><span class="p">,</span> <span class="n">calculator_results</span><span class="o">=</span><span class="n">calculator_results</span><span class="p">)</span>
-        <span class="n">sub_results</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">simple_results</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
-        <span class="n">icf_lst</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">pluck</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">sub_results</span><span class="p">))</span>
-        <span class="n">p_lst</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">pluck</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">sub_results</span><span class="p">))</span>
-        <span class="n">pp_lst</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">copula</span><span class="p">(</span><span class="n">p_lst</span><span class="p">,</span> <span class="n">context</span><span class="p">)</span>
-        <span class="n">cf</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">pluck</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">sub_results</span><span class="p">))</span>
-        <span class="n">p</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">pp_lst</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">p_lst</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
-        <span class="k">return</span> <span class="n">CResult</span><span class="p">(</span><span class="nb">sum</span><span class="p">((</span><span class="n">icf</span> <span class="o">*</span> <span class="n">pp</span> <span class="k">for</span> <span class="n">icf</span><span class="p">,</span> <span class="n">pp</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">icf_lst</span><span class="p">,</span> <span class="n">pp_lst</span><span class="p">))),</span> <span class="n">cf</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span></div></div>
+        <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">        :param Tensor mp_idx: index part of model point</span>
+<span class="sd">        :param Tensor mp_val: value part of model point</span>
+<span class="sd">        :param str context: calculation context</span>
+<span class="sd">        :param bool annual: annual or monthly result</span>
+<span class="sd">        :param calculator_results:</span>
+<span class="sd">        :type calculator_results: dict[str, Tensor]</span>
+<span class="sd">        :return: group result of cash flow detail</span>
+<span class="sd">        :rtype: GResult</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">raw_result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">raw_result</span><span class="p">(</span><span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">annual</span><span class="p">,</span> <span class="n">calculator_results</span><span class="o">=</span><span class="n">calculator_results</span><span class="p">)</span>
+        <span class="n">sub_results</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">raw_result</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+        <span class="n">qx_lst</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span><span class="o">.</span><span class="n">qx</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">sub_results</span><span class="p">]</span>
+        <span class="n">pp_lst</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">copula</span><span class="p">(</span><span class="n">qx_lst</span><span class="p">,</span> <span class="n">context</span><span class="p">)</span>
+        <span class="n">raw_result</span><span class="o">.</span><span class="n">qx</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">pp_lst</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># update qx</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">px</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">sub_results</span><span class="p">,</span> <span class="n">pp_lst</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]):</span>
+            <span class="n">r</span><span class="o">.</span><span class="n">lx_mul_</span><span class="p">(</span><span class="n">px</span><span class="p">)</span>  <span class="c1"># update lx</span>
+        <span class="k">return</span> <span class="n">raw_result</span></div></div>
 
 
 <span class="c1"># ================= Contract Definition ======================</span>
@@ -611,12 +739,19 @@
 
 <div class="viewcode-block" id="Contract"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.Contract">[docs]</a><span class="k">class</span> <span class="nc">Contract</span><span class="p">(</span><span class="n">Module</span><span class="p">):</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">clauses</span><span class="p">:</span> <span class="n">ClauseGroup</span><span class="p">):</span>
+<div class="viewcode-block" id="Contract.__init__"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.Contract.__init__">[docs]</a>    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">clauses</span><span class="p">:</span> <span class="n">ClauseGroup</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">        :param str name: name of the contract</span>
+<span class="sd">        :param ClauseGroup clauses: clauses of the contract</span>
+<span class="sd">        &quot;&quot;&quot;</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">clauses</span> <span class="o">=</span> <span class="n">clauses</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">av_calculator</span> <span class="o">=</span> <span class="n">AccountValueCalculator</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_setup_contract_ref</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">clauses</span><span class="o">.</span><span class="n">name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">clauses</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span></div>
 
     <span class="k">def</span> <span class="nf">_setup_contract_ref</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">for</span> <span class="n">md</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">modules</span><span class="p">():</span>
@@ -639,14 +774,14 @@
     <span class="k">def</span> <span class="nf">calculators</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">yield</span> <span class="bp">self</span><span class="o">.</span><span class="n">av_calculator</span>
 
-<div class="viewcode-block" id="Contract.forward"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.Contract.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">annual</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">annual</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="k">with</span> <span class="n">ExitStack</span><span class="p">()</span> <span class="k">as</span> <span class="n">stack</span><span class="p">:</span>
             <span class="n">calculator_results</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(((</span><span class="n">calc</span><span class="o">.</span><span class="n">type</span><span class="p">(),</span> <span class="n">stack</span><span class="o">.</span><span class="n">enter_context</span><span class="p">(</span><span class="n">calc</span><span class="p">(</span><span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">annual</span><span class="p">)))</span>
                                        <span class="k">for</span> <span class="n">calc</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">calculators</span><span class="p">()))</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">clauses</span><span class="p">(</span><span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">annual</span><span class="p">,</span> <span class="n">calculator_results</span><span class="o">=</span><span class="n">calculator_results</span><span class="p">)</span></div>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">clauses</span><span class="p">(</span><span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">annual</span><span class="p">,</span> <span class="n">calculator_results</span><span class="o">=</span><span class="n">calculator_results</span><span class="p">)</span>
 
-<div class="viewcode-block" id="Contract.extra_repr"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.Contract.extra_repr">[docs]</a>    <span class="k">def</span> <span class="nf">extra_repr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s2">&quot;$NAME$: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span></div></div>
+    <span class="k">def</span> <span class="nf">extra_repr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">&quot;$NAME$: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span></div>
 
 
 <span class="c1"># ============================= Converters ==============================</span>
@@ -664,8 +799,8 @@
     <span class="k">def</span> <span class="nf">bft_indicator</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">BFT_INDICATOR</span><span class="p">[</span><span class="n">mp_idx</span><span class="p">[:,</span> <span class="n">cls</span><span class="o">.</span><span class="n">BFT_IDX</span><span class="p">]</span><span class="o">.</span><span class="n">long</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="p">:]</span>
 
-<div class="viewcode-block" id="BaseConverter.forward"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.BaseConverter.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div></div>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
 
 
 <div class="viewcode-block" id="BaseSelector"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.BaseSelector">[docs]</a><span class="k">class</span> <span class="nc">BaseSelector</span><span class="p">(</span><span class="n">BaseConverter</span><span class="p">):</span>
@@ -674,8 +809,8 @@
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">idx</span> <span class="o">=</span> <span class="n">idx</span>
 
-<div class="viewcode-block" id="BaseSelector.forward"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.BaseSelector.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">mp_val</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">mp_val</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">MAX_YR_LEN</span><span class="p">)</span></div>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">mp_val</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">mp_val</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">MAX_YR_LEN</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">idx</span><span class="p">)</span></div>
@@ -690,12 +825,12 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">pmt_idx</span> <span class="o">=</span> <span class="n">pmt_idx</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">prem_idx</span> <span class="o">=</span> <span class="n">prem_idx</span>
 
-<div class="viewcode-block" id="PremPayed.forward"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.PremPayed.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="n">prem</span> <span class="o">=</span> <span class="n">mp_val</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">prem_idx</span><span class="p">]</span>
         <span class="n">pmt</span> <span class="o">=</span> <span class="n">mp_idx</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pmt_idx</span><span class="p">]</span><span class="o">.</span><span class="n">long</span><span class="p">()</span>
         <span class="n">fac</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">FAC</span><span class="p">[</span><span class="n">pmt</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="p">:]</span>
         <span class="n">idc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bft_indicator</span><span class="p">(</span><span class="n">mp_idx</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">fac</span> <span class="o">*</span> <span class="n">prem</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">idc</span></div></div>
+        <span class="k">return</span> <span class="n">fac</span> <span class="o">*</span> <span class="n">prem</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">idc</span></div>
 
 
 <div class="viewcode-block" id="WaiveSelf"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.WaiveSelf">[docs]</a><span class="k">class</span> <span class="nc">WaiveSelf</span><span class="p">(</span><span class="n">BaseConverter</span><span class="p">):</span>
@@ -709,12 +844,12 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">prem_idx</span> <span class="o">=</span> <span class="n">prem_idx</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">rate</span> <span class="o">=</span> <span class="n">make_parameter</span><span class="p">(</span><span class="n">rate</span><span class="p">)</span>
 
-<div class="viewcode-block" id="WaiveSelf.forward"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.WaiveSelf.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="n">prem</span> <span class="o">=</span> <span class="n">mp_val</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">prem_idx</span><span class="p">]</span>
         <span class="n">pmt</span> <span class="o">=</span> <span class="n">mp_idx</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pmt_idx</span><span class="p">]</span><span class="o">.</span><span class="n">long</span><span class="p">()</span>
         <span class="n">p_fac</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">FAC</span><span class="p">[</span><span class="n">pmt</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="p">:]</span>
         <span class="n">fac</span> <span class="o">=</span> <span class="p">((</span><span class="mi">1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">rate</span><span class="p">)</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="n">p_fac</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">rate</span>
-        <span class="k">return</span> <span class="n">fac</span> <span class="o">*</span> <span class="n">prem</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span></div></div>
+        <span class="k">return</span> <span class="n">fac</span> <span class="o">*</span> <span class="n">prem</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="Waive"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.Waive">[docs]</a><span class="k">class</span> <span class="nc">Waive</span><span class="p">(</span><span class="n">BaseConverter</span><span class="p">):</span>
@@ -724,12 +859,12 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">sa_idx</span> <span class="o">=</span> <span class="n">sa_idx</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">rate</span> <span class="o">=</span> <span class="n">make_parameter</span><span class="p">(</span><span class="n">rate</span><span class="p">)</span>
 
-<div class="viewcode-block" id="Waive.forward"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.Waive.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="n">sa</span> <span class="o">=</span> <span class="n">mp_val</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sa_idx</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
         <span class="n">bft</span> <span class="o">=</span> <span class="n">mp_idx</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">BFT_IDX</span><span class="p">]</span><span class="o">.</span><span class="n">long</span><span class="p">()</span>
         <span class="n">p_fac</span> <span class="o">=</span> <span class="n">WaiveSelf</span><span class="o">.</span><span class="n">FAC</span><span class="p">[</span><span class="n">bft</span><span class="p">,</span> <span class="p">:]</span>
         <span class="n">fac</span> <span class="o">=</span> <span class="p">((</span><span class="mi">1</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">rate</span><span class="p">)</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="n">p_fac</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">rate</span>
-        <span class="k">return</span> <span class="n">fac</span> <span class="o">*</span> <span class="n">sa</span></div></div>
+        <span class="k">return</span> <span class="n">fac</span> <span class="o">*</span> <span class="n">sa</span></div>
 
 
 <div class="viewcode-block" id="DescSA"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.DescSA">[docs]</a><span class="k">class</span> <span class="nc">DescSA</span><span class="p">(</span><span class="n">BaseConverter</span><span class="p">):</span>
@@ -738,16 +873,16 @@
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">sa_idx</span> <span class="o">=</span> <span class="n">sa_idx</span>
 
-<div class="viewcode-block" id="DescSA.forward"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.DescSA.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="n">sa</span> <span class="o">=</span> <span class="n">mp_val</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">sa_idx</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
         <span class="n">fac</span> <span class="o">=</span> <span class="n">WaiveSelf</span><span class="o">.</span><span class="n">FAC</span><span class="p">[</span><span class="n">mp_idx</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">BFT_IDX</span><span class="p">]</span><span class="o">.</span><span class="n">long</span><span class="p">(),</span> <span class="p">:]</span>
-        <span class="k">return</span> <span class="n">fac</span> <span class="o">*</span> <span class="n">sa</span></div></div>
+        <span class="k">return</span> <span class="n">fac</span> <span class="o">*</span> <span class="n">sa</span></div>
 
 
 <div class="viewcode-block" id="OnesBase"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.OnesBase">[docs]</a><span class="k">class</span> <span class="nc">OnesBase</span><span class="p">(</span><span class="n">BaseConverter</span><span class="p">):</span>
 
-<div class="viewcode-block" id="OnesBase.forward"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.OnesBase.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">mp_val</span><span class="o">.</span><span class="n">new_ones</span><span class="p">((</span><span class="n">mp_val</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">MAX_YR_LEN</span><span class="p">))</span></div></div>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">mp_val</span><span class="o">.</span><span class="n">new_ones</span><span class="p">((</span><span class="n">mp_val</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">MAX_YR_LEN</span><span class="p">))</span></div>
 
 
 <div class="viewcode-block" id="AccountValue"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.AccountValue">[docs]</a><span class="k">class</span> <span class="nc">AccountValue</span><span class="p">(</span><span class="n">BaseConverter</span><span class="p">):</span>
@@ -756,12 +891,12 @@
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">key</span> <span class="o">=</span> <span class="kc">None</span>
 
-<div class="viewcode-block" id="AccountValue.forward"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.AccountValue.forward">[docs]</a>    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">contract</span><span class="o">.</span><span class="n">av_calculator</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">key</span><span class="p">]</span>
         <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
             <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">contract</span><span class="o">.</span><span class="n">av_calculator</span><span class="p">(</span><span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>
-                                               <span class="n">key</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">key</span><span class="p">)</span></div></div>
+                                               <span class="n">key</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">key</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="Calculator"><a class="viewcode-back" href="../../../contract.html#corona.core.contract.Calculator">[docs]</a><span class="k">class</span> <span class="nc">Calculator</span><span class="p">:</span>
@@ -851,10 +986,18 @@
         <span class="n">rates_lst</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rates</span><span class="p">(</span><span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">annual</span><span class="p">)</span>
         <span class="n">after_credit_lst</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">after_credit</span><span class="p">(</span><span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">annual</span><span class="p">)</span>
         <span class="n">before_credit_lst</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">before_credit</span><span class="p">(</span><span class="n">mp_idx</span><span class="p">,</span> <span class="n">mp_val</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">annual</span><span class="p">)</span>
-        <span class="n">after_credit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">after_credit_lst</span><span class="p">)</span>
-        <span class="n">before_credit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">before_credit_lst</span><span class="p">)</span>
-        <span class="n">rates</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">rates_lst</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="n">dur_mth</span> <span class="o">=</span> <span class="n">mp_idx</span><span class="p">[:,</span> <span class="mi">4</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">after_credit_lst</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">after_credit</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">after_credit</span> <span class="o">=</span> <span class="n">time_slice</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">after_credit_lst</span><span class="p">),</span> <span class="n">dur_mth</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">before_credit_lst</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">before_credit</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">before_credit</span> <span class="o">=</span> <span class="n">time_slice</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">before_credit_lst</span><span class="p">),</span>  <span class="n">dur_mth</span><span class="p">)</span>
+        <span class="n">rates</span> <span class="o">=</span> <span class="n">time_slice</span><span class="p">(</span><span class="n">reduce</span><span class="p">(</span><span class="n">mul</span><span class="p">,</span> <span class="n">rates_lst</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">dur_mth</span><span class="p">)</span>
         <span class="n">av</span> <span class="o">=</span> <span class="n">account_value</span><span class="p">(</span><span class="n">a0</span><span class="p">,</span> <span class="n">rates</span><span class="p">,</span> <span class="n">after_credit</span><span class="p">,</span> <span class="n">before_credit</span><span class="p">)</span>
+        <span class="n">av</span> <span class="o">=</span> <span class="n">time_push</span><span class="p">(</span><span class="n">av</span><span class="p">,</span> <span class="n">dur_mth</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">memorize</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_av_store</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">INITIAL_AV_KEY</span><span class="p">]</span> <span class="o">=</span> <span class="n">av</span>
             <span class="n">curr</span> <span class="o">=</span> <span class="n">av</span>

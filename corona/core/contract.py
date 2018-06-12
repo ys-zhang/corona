@@ -71,15 +71,14 @@ support these cases.
         
         Typical contexts are *PRICING*, *GAAP*, *CROSS*, etc.
 
-        When we refer to *dicount rate* or *probability* in the *PRICING* context, we mean
+        When we refer to *discount rate* or *probability* in the *PRICING* context, we mean
         the discount rate and probabilities used in calculating the *gross premium* and *cash value*.
 
-        Whats more, in different contexts, a cash flow may alse have different meanings. For example, within the *GAAP* context,
+        Whats more, in different contexts, a cash flow may also have different meanings. For example, within the *GAAP* context,
         cashflows come from the linked account of a product whose design type is Universal is 0. Another case
         is the credit rate. When we test how our company will be like under different 
 
 #. mth_converter
-
 
 
 Clause Group
@@ -112,21 +111,23 @@ import re
 import random
 import weakref
 from collections import OrderedDict
-from functools import reduce
+from functools import reduce, lru_cache
 from operator import mul
-from typing import Callable, Optional
+from typing import Optional, Iterable, Dict
 from contextlib import ExitStack
 
 import numpy as np
 import torch
-from cytoolz import isiterable, pluck, accumulate, valfilter, valmap
+from cytoolz import isiterable, accumulate, valfilter
 from torch.nn import Module
 
 from corona.conf import MAX_YR_LEN
 from corona.utils import CF2M, repeat, account_value, make_model_dict, Lambda, \
-    make_parameter, ClauseReferable, ContractReferable, ModuleDict, CResult
+    make_parameter, ClauseReferable, ContractReferable, ModuleDict, CashFlow, \
+    time_push, GResult, time_slice
 
 
+@lru_cache(128)
 def parse_context(context: str):
     try:
         if '@' not in context:
@@ -138,37 +139,83 @@ def parse_context(context: str):
         return None, None
 
 
-class Clause(Module, ContractReferable):
+class ClauseLike:
+    pass
+
+
+class Clause(Module, ContractReferable, ClauseLike):
     r""" A typical Clause of an insurance contract.
 
     Attributes:
         - :attr:`name` (str)
            name of the clause, should be unique in the contract it belongs to
-        - :attr:`prob_assumptions` (ModuleList)
-           probability modules attached
+        - :attr:`base` (:class:`BaseConverter`)
+           base of the clause, calculate the value with the ratio will multiply to.
+        - :attr:`t_offset` (float) time offset.
+           For example, if t_offset=0.5, the clause is assumed to be triggered
+           at the middle of a month in a monthly module
+           or at the middle of a year in an annual module.
+           **This value is used in discounting cash flow in other modules**
+        - :attr:`ratio_tables` (:class:`~utils.ModuleDict`)
+           A Module holds modules to calculation the ratio of `base` under some context
+        - :attr:`prob_tables` (:class:`~utils.ModuleDict`)
+           A Module holds modules to lookup probability under some context
         - :attr:`default_context` (str)
-        - :attr:`mth_converter` (Union[Module, int])
-           module convert annual cash flow to monthly whether cash flow, if
-           `monthly_converter` is integer or None then
-           :class:`corona.util.CF2M` is used
-        - :attr:`virtual` (bool) whether if the prob of this clause will not involved in
-           *in force* or *lx* calculation.
-        - :attr:`contexts_exclude` (set) set of context names in which
-           this clause's cash flow is excluded or treat as zero,
-           but the probability is still in consideration.
+           The fallback context when the assumption of current contest is not found.
+        - :attr:`mth_converter` (:class:`~torch.nn.Module`)
+           module convert annual cash flow to monthly cash flow,
+        - :attr:`virtual` (bool)
+           whether if the prob of this clause will not involved in *in force* or *lx* calculation.
+           for example a clause represents survival benefit should be virtual.
+        - :attr:`contexts_exclude` (Callable)
+           judging whether this clause's cash flow is excluded or treat as zero under the input context,
+           *but the probability is still in consideration.*
     """
 
-    def __init__(self, name, ratio_tables, base: Callable=None,
-                 *, mth_converter=None,
+    def __init__(self, name, ratio_tables, base, t_offset, *, mth_converter=None,
                  prob_tables=None, default_context='DEFAULT', virtual=False,
                  contexts_exclude=()):
+        """
+
+        :param str name: name of the clause
+        :param ratio_tables: input can be both A dict and a single module.
+           if the input is a dict, the keys should be contexts.
+           if the input is a single module, the `default_context` is treated as the key
+           if the input is a float, then it will convert to a module using :class:`~util.Lambda`, acting like a
+           constant multiplier.
+        :type ratio_tables: Module or dict[str, Module] or float
+        :param base: base of the clause, calculate the value with the ratio will multiply to.
+           input can be a  :class:`BaseConverter` or integer.
+           if the input is a integer, the base of the clause will be a :class:`BaseSelector`.
+        :type base: int or BaseConverter
+        :param float t_offset: time offset
+        :param mth_converter: input can be both A module and a integer.
+           if `monthly_converter` is integer or None then :class:`~util.CF2M` is used.
+           you can use :class:`~util.Lambda` wrap a callable
+        :type mth_converter: Module or int
+        :param prob_tables: input can be both A dict and a single module.
+           if the input is a dict, the keys should be contexts.
+           if the input is a single module, the `default_context` is treated as the key
+        :type prob_tables: Module or dict[str, Module]
+        :param str default_context: default context, Default 'DEFAULT'
+        :param bool virtual: default `False`
+        :param contexts_exclude: contexts under which the cash flow of this clause should be excluded.
+           Input can be a string, an iterable or a callable.
+
+               - str: can be a single context or contexts separated by comma. if the string is started with `~`, the semantics is *'exclude except'*.
+               - iterable: contexts of the iterable is excluded
+               - callable: returns `True` if the cash flow should be excluded under the input context.
+        :type contexts_exclude: str or Iterable[str] or Callable
+
+        """
         super().__init__()
         self.name = name
         self.default_context = default_context
+        self.t_offset = t_offset
         self.virtual = virtual
         if isinstance(contexts_exclude, str):
             self._context_exclude_repr = contexts_exclude
-            if contexts_exclude[0] == '~':
+            if contexts_exclude.startswith('~'):
                 _context_exclude = set((x.strip() for x in contexts_exclude[1:].split(',')))
                 self.contexts_exclude = lambda x: x not in _context_exclude
             else:
@@ -219,27 +266,58 @@ class Clause(Module, ContractReferable):
                 md.set_clause_ref(self)
 
     def calc_ratio(self, mp_idx, mp_val, context, annual):
+        """Calculate ratio of modelpoint under some context
+
+        :param Tensor mp_idx: index part of model point
+        :param Tensor mp_val: value part of model point
+        :param str context: calculation context
+        :param bool annual: annual or monthly result
+        :return: ratio
+        """
         r = self.ratio_tables[context](mp_idx, mp_val)
         return r if annual else repeat(r, 12)
 
     def calc_prob(self, mp_idx, mp_val, context, annual):
+        """Calculate probability of modelpoint under some context
+
+        :param Tensor mp_idx: index part of model point
+        :param Tensor mp_val: value part of model point
+        :param str context: calculation context
+        :param bool annual: annual or monthly result
+        :return: probability
+        """
         return self.prob_tables[context](mp_idx, mp_val, annual=annual)
 
-    def forward(self, mp_idx, mp_val, context=None, annual=False, *, calculator_results=None):
+    def forward(self, mp_idx, mp_val, context=None, annual=False, *,
+                calculator_results=None):
+        """Cash flow calculation.
+
+        :param Tensor mp_idx: index part of model point
+        :param Tensor mp_val: value part of model point
+        :param str context: calculation context
+        :param bool annual: annual or monthly result
+        :param calculator_results:
+        :type calculator_results: dict[str, Tensor]
+        :return: cash flow detail
+        :rtype: CashFlow
+        """
         pattern, context = parse_context(context)
         p = self.calc_prob(mp_idx, mp_val, context, annual)
-        r = self.calc_ratio(mp_idx, mp_val, context, annual)
-        val = self.base(mp_idx, mp_val, context)
-        if not annual and not isinstance(self.base, AccountValue):
-            val = self.mth_converter(val)
-        cf = r * val
+
         if self.contexts_exclude(context):
-            pcf = 0
+            cf = 0
         elif pattern is None or pattern.fullmatch(self.name):
-            pcf = cf * p
+            r = self.calc_ratio(mp_idx, mp_val, context, annual)
+            val = self.base(mp_idx, mp_val, context)
+            if not annual and not isinstance(self.base, AccountValue):
+                val = self.mth_converter(val)
+            cf = r * val
         else:
-            pcf = 0
-        return CResult(pcf, cf, (mp_val.new_zeros((1,)) if self.virtual else p))
+            cf = 0
+
+        qx = mp_val.new_zeros((1,)) if self.virtual else p
+
+        return CashFlow(cf, p, qx, 1, self.t_offset)
 
     def extra_repr(self):
         return "$NAME$: {}\n".format(self.name) +\
@@ -249,7 +327,8 @@ class Clause(Module, ContractReferable):
 
 
 class SideEffect:
-
+    """Side effect of a impure :class:`DirtyClause`
+    """
     def __init__(self):
         self.clause = None
         """weak proxy of the dirty clause"""
@@ -263,7 +342,9 @@ class SideEffect:
 
 
 class ChangeAccountValue(SideEffect):
-
+    """SideEffect that will change the account value.
+    Used in account value calculation.
+    """
     def __call__(self, contract):
         """
         :param Contract contract:
@@ -280,7 +361,7 @@ class ChangeAccountValue(SideEffect):
 
 
 class DirtyClause(Clause):
-    """A Clause that is impure and has side effects
+    """A Clause that is impure and has a :class:`SideEffect`
     """
     def __init__(self, *args, side_effect, **kwargs):
         super().__init__(*args, **kwargs)
@@ -294,51 +375,63 @@ class DirtyClause(Clause):
 
 
 class AClause(DirtyClause):
-    """A Clause that will change the Account Value of the contract
+    """:class:`DirtyClause` that will change the Account Value of the contract.
+    with :class:`ChangeAccountValue` as SideEffect
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, side_effect=ChangeAccountValue(), **kwargs)
 
 
-class ClauseGroup(ModuleDict):
+class ClauseGroup(ModuleDict, ClauseLike):
     """ Base of all Clause containers
+    :class:`ParallelGroup` and :class:`SequentialGroup` inherit directly from this class.
+
     """
     def __init__(self, *clause, name=None, **kwargs):
         """
-        :param clause: list of clause like objects including Clause,
-            ParallelGroup etc
+        :param clause: clause like objects including :class:`Clause`,
+            :class:`ParallelGroup`, :class:`SequentialGroup` etc
         :param name: a optional name of this group
         """
         if len(clause) == 1 and isiterable(clause[0]):
             clause = clause[0]
         d = OrderedDict(((n, cl) for cl, n in zip(clause, self._get_dict_name(clause))))
         super().__init__(d)
-        if name is not None:
-            self.name = name
+        self.name = name
 
     def clauses(self):
         """Clauses contained directly in this group.
+
+        :rtype: Iterable[Clause]
         """
         return filter(lambda md: isinstance(md, Clause), self.children())
 
     def named_clauses(self)->dict:
         """Dict of clauses contained directly in this group with name as key.
+
+        :rtype: Dict[str, Clause]
         """
         return valfilter(lambda md: isinstance(md, Clause), dict(self.named_children()))
 
     def clause_groups(self):
         """Subgroup of clauses contained directly in this group.
+
+        :rtype: Iterable[ClauseGroup]
         """
         return filter(lambda md: isinstance(md, ClauseGroup), self.children())
 
     def named_clause_groups(self)->dict:
         """Dict of subgroup of clauses contained directly in this group with name as key.
+
+        :rtype: Dict[str, ClauseGroup]
         """
         return valfilter(lambda md: isinstance(md, ClauseGroup), self.named_children())
 
     def search_clause(self, name):
-        """Get clause by name. It will search among all claused contained in this group,
+        """Get clause by name. It will search among all clauses contained in this group,
         including those contained by sub groups
+
+        :rtype: Clause
         """
         named_clauses = self.named_clauses()
         if name in named_clauses:
@@ -353,6 +446,8 @@ class ClauseGroup(ModuleDict):
 
     def all_clauses(self):
         """iterator of all clauses contained in this group.
+
+        :rtype: Iterable[Clause]
         """
         for cl in self.children():
             if isinstance(cl, Clause):
@@ -372,26 +467,48 @@ class ClauseGroup(ModuleDict):
                 d[name] = i
                 yield f'{name}#{i}'
 
+    def raw_result(self, *args, **kwargs):
+        """Calc and return all results of children model
+
+        :return: unmodified GResult
+        :rtype: GResult
+        """
+        return GResult(OrderedDict(((k, v(*args, **kwargs))
+                                    for k, v in self._modules.items() if isinstance(v, ClauseLike))))
+
     def forward(self, *args, **kwargs):
-        return valmap(lambda md: md(*args, **kwargs),
-                      valfilter(lambda md: isinstance(md, Clause) or isinstance(md, ClauseGroup),
-                                self._modules))
+        raise NotImplementedError
 
 
 class ParallelGroup(ClauseGroup):
     """ A container define a list of "Clause" like objects with the order plays
     make no difference to calculation. The clauses within are independent.
     """
-    def __init__(self, *clause, name=None):
+    def __init__(self, *clause, name=None, **kwargs):
         super().__init__(*clause, name=name)
+        self.t_offset = kwargs.get('t_offset', None)
+        if self.t_offset is not None:
+            for cl in self.clauses():
+                cl.t_offset = self.t_offset
 
-    def forward(self, mp_idx, mp_val, context=None, annual=False, *, calculator_results=None):
-        simple_results = super().forward(mp_idx, mp_val, context, annual, calculator_results=calculator_results)
-        sub_results = list(simple_results.values())
-        icf = sum(pluck(0, sub_results))
-        cf = sum(pluck(1, sub_results))
-        p = sum(pluck(2, sub_results))
-        return CResult(icf, cf, p)
+    def forward(self, mp_idx, mp_val, context=None, annual=False,
+                *, calculator_results=None):
+        """
+
+        :param Tensor mp_idx: index part of model point
+        :param Tensor mp_val: value part of model point
+        :param str context: calculation context
+        :param bool annual: annual or monthly result
+        :param calculator_results:
+        :type calculator_results: dict[str, Tensor]
+        :return: group result of cash flow detail
+        :rtype: GResult
+        """
+        raw_result = self.raw_result(mp_idx, mp_val, context, annual,
+                                     calculator_results=calculator_results)
+        qx = sum((r.qx for r in raw_result.values()))
+        raw_result.qx = qx
+        return raw_result
 
 
 class SequentialGroup(ClauseGroup):
@@ -412,7 +529,7 @@ class SequentialGroup(ClauseGroup):
        #. list of probability (of kicked off from in force) tensors
        #. the context name
 
-       And returns a list of tensor represents the inforce number just
+       And returns a list of tensor represents the number of in force just
        before the clause can be triggered  i.e. *px*.
 
     """
@@ -428,20 +545,31 @@ class SequentialGroup(ClauseGroup):
         if copula is None:
             self.copula = Lambda(lambda lst, context:
                                  list(accumulate(mul, (1 - x for x in lst),
-                                                 initial=1))[:-1],
+                                                 initial=1)),
                                  repre='DefaultCopula')
         else:
             self.copula = copula
 
     def forward(self, mp_idx, mp_val, context=None, annual=False, *, calculator_results=None):
-        simple_results = super().forward(mp_idx, mp_val, context, annual, calculator_results=calculator_results)
-        sub_results = list(simple_results.values())
-        icf_lst = list(pluck(0, sub_results))
-        p_lst = list(pluck(2, sub_results))
-        pp_lst = self.copula(p_lst, context)
-        cf = sum(pluck(1, sub_results))
-        p = 1 - pp_lst[-1] * (1 - p_lst[-1])
-        return CResult(sum((icf * pp for icf, pp in zip(icf_lst, pp_lst))), cf, p)
+        """
+
+        :param Tensor mp_idx: index part of model point
+        :param Tensor mp_val: value part of model point
+        :param str context: calculation context
+        :param bool annual: annual or monthly result
+        :param calculator_results:
+        :type calculator_results: dict[str, Tensor]
+        :return: group result of cash flow detail
+        :rtype: GResult
+        """
+        raw_result = self.raw_result(mp_idx, mp_val, context, annual, calculator_results=calculator_results)
+        sub_results = list(raw_result.values())
+        qx_lst = [r.qx for r in sub_results]
+        pp_lst = self.copula(qx_lst, context)
+        raw_result.qx = 1 - pp_lst[-1]  # update qx
+        for r, px in zip(sub_results, pp_lst[:-1]):
+            r.lx_mul_(px)  # update lx
+        return raw_result
 
 
 # ================= Contract Definition ======================
@@ -450,11 +578,18 @@ class SequentialGroup(ClauseGroup):
 class Contract(Module):
 
     def __init__(self, name, clauses: ClauseGroup):
+        """
+
+        :param str name: name of the contract
+        :param ClauseGroup clauses: clauses of the contract
+        """
         super().__init__()
         self.name = name
         self.clauses = clauses
         self.av_calculator = AccountValueCalculator(self)
         self._setup_contract_ref()
+        if self.clauses.name is None:
+            self.clauses.name = self.name
 
     def _setup_contract_ref(self):
         for md in self.modules():
@@ -689,10 +824,18 @@ class AccountValueCalculator(Calculator):
         rates_lst = self.rates(mp_idx, mp_val, context, annual)
         after_credit_lst = self.after_credit(mp_idx, mp_val, context, annual)
         before_credit_lst = self.before_credit(mp_idx, mp_val, context, annual)
-        after_credit = self.sum(after_credit_lst)
-        before_credit = self.sum(before_credit_lst)
-        rates = reduce(mul, rates_lst) - 1
+        dur_mth = mp_idx[:, 4]
+        if after_credit_lst is None:
+            after_credit = None
+        else:
+            after_credit = time_slice(self.sum(after_credit_lst), dur_mth)
+        if before_credit_lst is None:
+            before_credit = None
+        else:
+            before_credit = time_slice(self.sum(before_credit_lst),  dur_mth)
+        rates = time_slice(reduce(mul, rates_lst) - 1, dur_mth)
         av = account_value(a0, rates, after_credit, before_credit)
+        av = time_push(av, dur_mth)
         if memorize:
             self._av_store[self.INITIAL_AV_KEY] = av
             curr = av

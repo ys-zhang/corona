@@ -10,7 +10,16 @@ __all__ = ['Probability', 'SelectionFactor', 'SelectedProbability',
 
 
 class Probability(Module):
+    """ Class represents a Proabability Table
 
+    Attributes:
+        - :attr:`name` (str)
+           the name of Table.
+        - :attr:`qx` (:class:`~torch.nn.Parameter`)
+           annual probability with rows as sex, columns as age
+        - :attr:`kx` (:class:`~torch.nn.Parameter`)
+
+    """
     SEX_IDX, AGE_IDX = 0, 1
 
     # noinspection PyArgumentList
@@ -39,14 +48,13 @@ class Probability(Module):
             kx_mth = None
         return qx_mth, kx_mth
 
-    def set_parameter(self, px, kx=None):
+    def set_parameter(self, qx, kx=None):
         """Set Parameter with new tensor value
 
-        :param Tensor px:
+        :param Tensor qx:
         :param Tensor kx:
-        :return: self
         """
-        self.px.data.set_(px)
+        self.qx.data.set_(qx)
         if kx and self.kx is not None:
             self.kx.data.set_(kx)
         return self
