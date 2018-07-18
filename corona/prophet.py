@@ -23,7 +23,8 @@ A `ProphetTable` is just like a pandas DataFrame, except that:
     #. `[]` can select both row and column, but **we strongly recommend only use it when selecting rows**.
        At this version, a warn will be thrown out if a column is selected and returned.
     #. Dot expression can be used to select column just like a DataFrame, for example `GLOBAL.RUN_99`
-       is column "RUN_99" of table "GLOBAL". **We strongly recommend you to use the dot expression only to select columns**.
+       is column "RUN_99" of table "GLOBAL". **We strongly recommend you to use the dot expression only
+       to select columns**.
     #. Unlike `DataFrame`, there is no `loc` or `iloc` attribute in `ProphetTable`
     #. When selecting cells with string value from a TableOfTable, the result can be different from other types
        of ProphetTables. First the result is looked up in the cache, if there is a table cached with
@@ -60,13 +61,15 @@ Example
     lapse_table2017 = ProphetTable.get_table(lapse_table_name + '2017')
 
 """
+import enum
+import os
+import warnings
+import sqlite3
+
 import pyparsing as pp
 import pandas as pd
 import numpy as np
 from cytoolz import get
-import enum
-import os
-import warnings
 
 __all__ = ['ProphetTable', 'read_generic_table', 'read_parameter_table',
            'read_probability_table', 'read_modelpoint_table',
@@ -163,7 +166,7 @@ class ProphetTable:
     def __init__(self, tablename, tabletype, dataframe, *, cache=True):
         self.tablename = tablename
         self.tabletype = tabletype
-        self.dataframe = dataframe
+        self.dataframe: pd.DataFrame = dataframe
         if cache and self.tabletype != ProphetTableType.ModelPoint:
             if self.tablename in self._ALL_TABLES_:
                 warnings.warn("tablename :{} all ready exists".format(self.tablename),
@@ -209,8 +212,9 @@ class ProphetTable:
         return get(prophet_var_types, cls.PROPHET_NUMPY_VAR_MAP)
 
     @staticmethod
-    def guess_tablename(file):
-        return os.path.split(file)[1].split('.')[0]
+    def guess_tablename(file)->str:
+        rst = os.path.split(file)[1].split('.')[0]  # type: str
+        return rst
 
     def __repr__(self):
         if self.tablename is None:
@@ -418,6 +422,35 @@ class ProphetTable:
 
         return klass(fac, *args_of_klass, name=self.tablename, **kwargs_of_klass)
 
+    @classmethod
+    def cache_to_hdf(cls, path):
+        """Save all cached tables to hdf file
+
+        :param str path: path to hdf file
+        """
+        with pd.HDFStore(path) as store:
+            for k, v in cls._ALL_TABLES_.items():
+                if v.tabletype == ProphetTableType.Parameter:
+                    group = 'param/'
+                elif v.tabletype == ProphetTableType.GenericTable:
+                    group = 'gene/'
+                elif v.tabletype == ProphetTableType.TableOfTable:
+                    group = 'tot/'
+                elif v.tabletype == ProphetTableType.Probability:
+                    group = 'prob/'
+                else:
+                    raise ValueError(v.tabletype)
+                try:
+                    store.append(group + k, v.dataframe)
+                except TypeError:
+                    store.append(group + k, v.dataframe.T, min_itemsize={'values': 50})
+    
+    @classmethod
+    def cache_to_sqlite(cls, path):
+        with sqlite3.connect(path) as conn:
+            for tablename, table in cls._ALL_TABLES_.items():
+                table.dataframe.to_sql(tablename, conn)
+
 
 read_generic_table = ProphetTable.read_generic_table
 read_parameter_table = ProphetTable.read_parameter_table
@@ -428,7 +461,7 @@ read_table_of_table = ProphetTable.read_table_of_table
 
 def read_assumption_tables(folder, *, tot_pattern=None,
                            param_pattern=None, prob_folder=None,
-                           exclude_folder = None,
+                           exclude_folder=None,
                            exclude_pattern=None, clear_cache=False):
     """ Read All tables in folder. First exclude_folder and exclude_pattern are
     used to test if the table should be ignored, then prob_folder is used to
@@ -438,7 +471,8 @@ def read_assumption_tables(folder, *, tot_pattern=None,
 
     .. note::
 
-        Links are treated as folders, it can lead to infinite recursion if a link points to a parent directory of itself
+        Links are treated as folders, it can lead to infinite recursion if a link points
+        to a parent directory of itself.
 
 
     >>> read_assumption_tables("./TABLES", prob_folder='MORT',
@@ -458,7 +492,8 @@ def read_assumption_tables(folder, *, tot_pattern=None,
     :param str exclude_pattern: regular expression of table name that should be ignored
     :param bool clear_cache: if True cached tables will be cleared before reading, default False
     """
-    import re, os
+    import re
+    import os
     get_name = ProphetTable.guess_tablename
 
     if clear_cache:
