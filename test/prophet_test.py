@@ -6,13 +6,13 @@ from corona.core.prob import *
 class TestFacTable(unittest.TestCase):
 
     def setUp(self):
-
-        self.ppp_file = open('./data/SB_PPP_IPL001.fac', errors='ignore')
-        self.ppp_table = self.ppp_file.readlines()
-        self.ppp_age_file = open('./data/PREM_LOADING_PPPAGE_IPL002.fac',
-                                 errors='ignore')
-        self.ppp_age_table = self.ppp_age_file.readlines()
-        self.mp_file = './data/ITL006.RPT'
+        pass
+        # self.ppp_file = open('./data/SB_PPP_IPL001.fac', errors='ignore')
+        # self.ppp_table = self.ppp_file.readlines()
+        # self.ppp_age_file = open('./data/PREM_LOADING_PPPAGE_IPL002.fac',
+        #                          errors='ignore')
+        # self.ppp_age_table = self.ppp_age_file.readlines()
+        # self.mp_file = './data/ITL006.RPT'
 
     def tearDown(self):
         ProphetTable.clear_cache()
@@ -70,3 +70,11 @@ class TestFacTable(unittest.TestCase):
         print(dict([
             [key, [v.tablename for v in val]] for key, val in rst.items()
         ]))
+
+    def testHDFSaver(self):
+        prlife_read('./data/TABLES')
+        ProphetTable.cache_to_hdf('./tables.h5')
+
+    def testSqliteSaver(self):
+        prlife_read('./test/data/TABLES')
+        ProphetTable.cache_to_sqlite('./tables.db')

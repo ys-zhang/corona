@@ -11,9 +11,9 @@ import pandas as pd
 class TestContract(unittest.TestCase):
 
     def setUp(self):
-        df = ProphetTable.read_modelpoint_table('./data/IUL042.RPT')
-        mp = ModelPointSet(df.dataframe, transform=to_tensor)
-        self.dl = mp.data_loader()
+        # df = ProphetTable.read_modelpoint_table('./data/IUL042.RPT')
+        # mp = ModelPointSet(df.dataframe, transform=to_tensor)
+        # self.dl = mp.data_loader()
         self.mp_idx = torch.tensor([[0, 12, 1, 88, 23],
                                     [1, 42, 1, 105, 1]]).long()
         self.mp_value = torch.tensor([[10000, 10000, 10000, 0.04],
@@ -24,26 +24,26 @@ class TestContract(unittest.TestCase):
                          AClause('FEE', ratio_tables=-10., t_offset=0,
                                  base=OnesBase(), prob_tables=Inevitable(),
                                  virtual=True),
-                         AClause('CREDIT-H1', ratio_tables=KeepCurrentCredit(.5),
+                         AClause('CREDIT_H1', ratio_tables=KeepCurrentCredit(.5),
                                  base=AccountValue(), prob_tables=Inevitable(),
                                  contexts_exclude='~PROFIT', t_offset=.5,
                                  virtual=True),
                          ParallelGroup(
-                             Clause('DB-INSIDE', ratio_tables=1., t_offset=.5,
+                             Clause('DB_INSIDE', ratio_tables=1., t_offset=.5,
                                     base=AccountValue(),
                                     prob_tables=CL13_I, contexts_exclude='GAAP, SOME_OTHER', virtual=True),
-                             Clause('DB-OUTSIDE', ratio_tables=.6, t_offset=.5,
+                             Clause('DB_OUTSIDE', ratio_tables=.6, t_offset=.5,
                                     base=AccountValue(),
                                     prob_tables=CL13_I),
                              name='DB'),
-                         AClause('CREDIT-H2', ratio_tables=KeepCurrentCredit(.5),
+                         AClause('CREDIT_H2', ratio_tables=KeepCurrentCredit(.5),
                                  base=AccountValue(), prob_tables=Inevitable(),
                                  contexts_exclude='~PROFIT', t_offset=.5,
                                  virtual=True),
                         )
                      )
 
-    # @unittest.skip('跳过contract.__repr__')
+    @unittest.skip('跳过contract.__repr__')
     def testRepr(self):
         print(self.contract)
 
@@ -55,8 +55,8 @@ class TestContract(unittest.TestCase):
     def testAllClauses(self):
         lst = list(self.contract.all_clauses())
         self.assertSequenceEqual([x.name for x in lst],
-                                 ['FEE', 'CREDIT-H1', 'DB-INSIDE', 'DB-OUTSIDE',
-                                  'CREDIT-H2'])
+                                 ['FEE', 'CREDIT_H1', 'DB_INSIDE', 'DB_OUTSIDE',
+                                  'CREDIT_H2'])
 
     def testSideEffect(self):
         lst = [c for c in self.contract.all_clauses() if isinstance(c.base, AccountValue)]
@@ -73,15 +73,14 @@ class TestContract(unittest.TestCase):
                                     base=AccountValue(),
                                     prob_tables=CL13_I, contexts_exclude='GAAP, SOME_OTHER', virtual=True),
                              Clause('DB-OUTSIDE', ratio_tables=.6, t_offset=.5,
-                                    base=AccountValue(),
-                                    prob_tables=CL13_I),
+                                    base=AccountValue(), prob_tables=CL13_I),
                              name='DB'
                          ),
                          AClause('CREDIT-H2', ratio_tables=KeepCurrentCredit(.5), t_offset=.5,
                                  base=AccountValue(), prob_tables=Inevitable(),
                                  virtual=True),
+                        )
                      )
-                )
         self.assertSequenceEqual([c.base.key for c in contract.all_clauses() if isinstance(c.base, AccountValue)],
                                  [AccountValueCalculator.INITIAL_AV_KEY, 'CREDIT-H1', 'CREDIT-H1', 'CREDIT-H1'])
 
@@ -91,8 +90,8 @@ class TestContract(unittest.TestCase):
         mp_value = torch.tensor([[10000, 10000, 10000, 0.04],
                                  [10000, 10000, 10000, 0.05]], dtype=torch.double)
 
-        av_gaap = self.contract.av_calculator.account_value(mp_idx, mp_value, 'GAAP')
-        av_default = self.contract.av_calculator.account_value(mp_idx, mp_value, None)
+        av_gaap = self.contract.AccountValueCalculator.account_value(mp_idx, mp_value, 'GAAP')
+        av_default = self.contract.AccountValueCalculator.account_value(mp_idx, mp_value, None)
         self.assertAlmostEqual(av_gaap.numpy()[:, -1].sum(), 1853632.77909629)
         self.assertAlmostEqual(av_default.numpy()[:, -1].sum(), 1853632.77909629)
         df = pd.DataFrame(av_gaap.numpy()).T
@@ -109,10 +108,29 @@ class TestContract(unittest.TestCase):
     def testForward(self):
         crst = self.contract(self.mp_idx, self.mp_value, 'GAAP')
         crst2 = self.contract(self.mp_idx, self.mp_value, 'PROFIT')
-        df = pd.DataFrame(crst2.pcf.detach().numpy()).T
-        df.to_clipboard()
-        print(crst)
-        # pd.DataFrame(CL13_I.qx.data.detach().numpy()).T.to_clipboard()
+        frst = crst.flat()
+
+        print('\n')
+        # df = frst['DB_OUTSIDE'].dataframe('2018/05/01').stack(0)
+        # print(list(df.itertuples(name=None)))
+        # print(frst['DB_OUTSIDE'].dataframe('2018/05/01'))
+        print(pd.DataFrame(frst.AccountValue.T))
+
+    def testToSqlite(self):
+        crst = self.contract(self.mp_idx, self.mp_value, 'GAAP')
+        crst2 = self.contract(self.mp_idx, self.mp_value, 'PROFIT')
+        frst = crst.flat()
+
+        print('\n')
+        df = frst['DB_OUTSIDE'].dataframe('2018/05/01')
+        # print(list(df.itertuples(name=None)))
+        # print(frst.t_offset_df)
+        frst.to_sqlite(r'./gaap.db', '2018/05/01')
+
+    def test(self):
+        crst2 = self.contract(self.mp_idx, self.mp_value, 'PROFIT')
+        frst = crst2.flat()
+        frst.to_sql(r'./gaap.db', '2018/05/01')
 
 
 class TestBaseConverter(unittest.TestCase):

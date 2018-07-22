@@ -4,267 +4,12 @@ import enum
 import warnings
 
 import torch
-import collections
 from torch import Tensor, nn
 import torch.nn.functional as F
 import numpy as np
 from cytoolz import isiterable, keyfilter, valmap
 
-
-class CashFlow:
-    """Cash Flow Data, return type of :class:`~core.contract.Clause`
-
-    Attributes:
-
-        :attr:`cf` Blank Cash Flow
-        :attr:`p` probability of the cash flow
-        :attr:`qx` probability of kick out of the contract
-        :attr:`lx` in force number before the cash flow happens
-        :attr:`t_offset` time offset to begining of each time interval
-
-    """
-
-    __slots__ = ("cf", "p", "qx", 'lx', 't_offset')
-
-    def __init__(self, cf, p, qx, lx, t_offset):
-        self.cf = cf
-        self.p = p
-        self.qx = qx
-        self.lx = lx
-        self.t_offset = t_offset
-
-    def __getitem__(self, item):
-        return CashFlow(self.cf[item], self.p[item],
-                        self.qx[item], self.lx[item], self.t_offset)
-
-    @property
-    def pcf(self):
-        """ cf * p
-
-        :rtype: Tensor
-        """
-        return self.cf * self.p
-
-    @property
-    def icf(self):
-        """ cf * p * lx
-
-        :rtype: Tensor
-        """
-        return self.pcf * self.lx
-
-    @property
-    def lx2(self):
-        """ (1 - qx) * lx
-
-        :rtype: Tensor
-        """
-        return self.lx * self.px
-
-    @property
-    def px(self):
-        """ 1 - qx
-
-        :rtype: Tensor
-        """
-        return 1 - self.qx
-
-    @px.setter
-    def px(self, px):
-        self.qx = 1 - px
-
-    def lx_mul_(self, ts):
-        """ Make CashFlow has a interface compatible to :class:`GResult`.
-        see :meth:`GResult.lx_mul_`
-        """
-        self.lx = self.lx * ts
-        return self
-
-    def remove_offset(self, forward_rate):
-        """ Equivalent CashFlow with t_offset=0
-
-        :param Tensor forward_rate: discount rate
-        :rtype: CashFlow
-        """
-        if self.t_offset != 0:
-            return CashFlow(self.cf / forward_rate.add(1).pow(self.t_offset),
-                            self.p, self.qx, self.lx, 0)
-        else:
-            return self
-
-    def full_offset(self, forward_rate):
-        """ Equivalent CashFlow with t_offset=1
-
-        :param Tensor forward_rate: discount rate
-        :rtype: CashFlow
-        """
-        if self.t_offset != 1:
-            return CashFlow(self.cf * forward_rate.add(1).pow(1 - self.t_offset),
-                            self.p, self.qx, self.lx, 1)
-        else:
-            return self
-
-    def remove_offset_(self, forward_rate):
-        if self.t_offset != 0:
-            self.cf.div_(forward_rate.add(1).pow(self.t_offset))
-            self.t_offset = 0.
-        return self
-
-    def full_offset_(self, forward_rate):
-        if self.t_offset != 1:
-            self.cf.mul_(forward_rate.add(1).pow(1 - self.t_offset))
-            self.t_offset = 1.
-        return self
-
-
-class GResult:
-    r""" Result Type of :class:`~core.contract.ClauseGroup`.
-
-    Attributes:
-        :attr:`results`:
-            An `OrderedDict` holding results of sub clause-like modules of the
-            :class:`~core.contract.ClauseGroup` generated the `GResult` object
-        :attr:`qx`:
-            A `Tensor` represents the equivalent `qx` of the whole GResult
-            treated as a single entity.
-        :attr:`lx`:
-            A `Tensor` represents the number of in force before any of sub results
-            happens.
-
-            .. note:
-
-                The value of this :attr:`lx` is linked to `lx`s of its :attr:`results`
-                *just **after** initialization*. Once :attr:`lx` is reset by `=`,
-                `lx`s of `results` is updated by
-
-                .. math:
-                    \text{results.lx}_{\text{new}} = \text{results.lx}_{\text{old}}
-                        * \text{lx}_{\text{new}} / \text{lx}_{\text{old}}
-
-    """
-    __slots__ = ('results', '_lx', 'qx')
-
-    def __init__(self, results, qx=None, lx=1):
-        """
-
-        :param results: OrderedDict of :class:`CashFlow`s or :class:`GResults`.
-        :type results: OrderedDict
-        :param Tensor qx: equivalent qx if the GResult object is treated as a single entity
-        :param lx: number of in force before any of the cash flows of this GResult happen
-        :type lx: float or Tensor
-        """
-        self.results = results  # type: collections.OrderedDict
-        self._lx = lx
-        self.qx = qx
-
-    @property
-    def lx(self):
-        return self._lx
-
-    @lx.setter
-    def lx(self, lx):
-        _lx = self._lx
-        self._lx = lx
-        for v in self.results.values():  # type: GResult or CashFlow
-            v.lx = v.lx * lx / _lx
-
-    def lx_mul_(self, ts):
-        """Multiply `lx` by `ts` equivalent to::
-            g_result.lx = lx * ts
-
-        this method is faster and returns `self`.
-
-        :param Tensor ts: the multiplier
-        :rtype: GResult
-        """
-        self._lx = self._lx * ts
-        for v in self.results.values():  # type: GResult or CashFlow
-            v.lx = v.lx * ts
-        return self
-
-    def __getitem__(self, item):
-        return self.results[item]
-
-    def __setitem__(self, key, value):
-        self.results[key] = value
-
-    def keys(self):
-        return self.results.keys()
-
-    def values(self):
-        return self.results.values()
-
-    def items(self):
-        return self.results.items()
-
-    def __iter__(self):
-        return self.items()
-
-    def flat(self):
-        """ Flat result of the collection
-        :rtype: FResult
-        """
-        return FResult(self)
-
-
-class FResult(collections.OrderedDict):
-    """ Container to store a **flat** collection of :class:`CashFlow`s with the name of
-    the clause generates the cash flow as the key.
-    """
-    __slots__ = ()
-
-    def __init__(self, raw_result):
-        """
-
-        :param OrderedDict raw_result: raw result
-        :type raw_result: GResult
-        """
-        super().__init__(self._make_iter(raw_result))
-
-    @staticmethod
-    def _make_iter(raw_result):
-        for i, v in raw_result.items():
-            if isinstance(v, GResult):
-                yield from FResult._make_iter(v)
-            elif isinstance(v, CashFlow):
-                yield i, v
-            else:
-                raise TypeError(v)
-
-    def cf(self, value_only=False):
-        if value_only:
-            return [v.cf for v in self.values()]
-        else:
-            return collections.OrderedDict(((k, v.cf) for k, v in self.items()))
-
-    def p(self, value_only=False):
-        if value_only:
-            return [v.p for v in self.values()]
-        else:
-            return collections.OrderedDict(((k, v.p) for k, v in self.items()))
-
-    def qx(self, value_only=False):
-        if value_only:
-            return [v.qx for v in self.values()]
-        else:
-            return collections.OrderedDict(((k, v.qx) for k, v in self.items()))
-
-    def px(self, value_only=False):
-        if value_only:
-            return [v.px for v in self.values()]
-        else:
-            return collections.OrderedDict(((k, v.px) for k, v in self.items()))
-
-    def t_offset(self, value_only=False):
-        if value_only:
-            return [v.t_offset for v in self.values()]
-        else:
-            return collections.OrderedDict(((k, v.t_offset) for k, v in self.items()))
-
-    def apply_(self, func):
-        for k, cf in self.values():
-            self[k] = func(cf)
-        return self
+from corona.conf import MAX_YR_LEN, MAX_MTH_LEN
 
 
 class Repeat(torch.autograd.Function):
@@ -332,6 +77,17 @@ def repeat_table(table: Tensor, repeats: int=12)->Tensor:
         .view(shape[0], shape[1] * repeats)
 
 
+def convolve(unit, nb_plan):
+    """convolution of nb_plan over unit, used in calcultion of new buisiness
+    """
+    weight = flip(nb_plan)
+    padding = weight.shape[-1] - 1
+    length = unit.shape[-1]
+    return conv1d(unit.unsqueeze(0),
+                  weight.unsqueeze(0), padding=padding)\
+        .squeeze().narrow(-1, 0, length)
+
+
 def sens(ts: Tensor, weight=None, bias=None)->Tensor:
     r""" Affine function for sensitive test.
     if dimension of weight is 1 then `weight` is point wise multiplied to `ts`
@@ -365,6 +121,11 @@ def time_slice1d(ts: Tensor, aft, pad_value):
 
         $$ out_i = ts_{i + aft} * \chi_{i + aft < n} +
                pad_value * \chi_{i + aft \ge n} $$
+
+    Example:
+
+        a = [1, 2, 3, 4]
+        b = time_slice1d(a, 2, 0)  # [3, 4, 0, 0]
 
     """
     if aft > 0:
@@ -423,6 +184,11 @@ def time_push1d(ts: Tensor, to)->Tensor:
     .. math::
 
         $$ out_i = ts_{i - \text{to}} * \chi_{i \ge \text{to}}
+    
+    Example:
+        a = torch.tensor([1, 2, 3, 4])
+        b = time_push1d(a, 2)  # [0, 0, 1, 2]
+
     """
     rst = ts.new_zeros(ts.shape)
     rst[to:] = ts[:(ts.nelement()-to)]
@@ -528,14 +294,13 @@ def account_value(a0: Tensor, rate: Tensor, after_credit: Tensor=None, before_cr
 
     .. math::
 
-        a_{i, t+1} = (a_{i, t} + \text{before_credit}_{i, t}) * rate_{i, t}
-         + \text{after_credit}_{i, t}
+        a_{i, t+1} = (a_{i, t} + \text{beforeCredit}_{i, t}) * rate_{i, t}
+         + \text{afterCredit}_{i, t}
 
     :param a0: 1-D tensor represents initial av of each model point
     :param rate: 1-D tensor, credit interest of each model point at each time
-    :param after_credit: increment  or reduction of account value after credit
-    :param before_credit: increment  or reduction of account value
-        before credit
+    :param after_credit: increment or deduction of account value after credit
+    :param before_credit: increment or deduction of account value before credit
     :return: the account value of each model point at each time,
         the first column is a0
 
@@ -632,9 +397,9 @@ def pad(raw_table, n_col, pad_value, pad_mode):
     elif raw_table.dim() == 1:
         table = torch.unsqueeze(raw_table, 0)
     elif n_col and n_col > raw_table.shape[1]:
-        pad = (0, n_col - raw_table.shape[1])
+        pad_shape = (0, n_col - raw_table.shape[1])
         if pad_mode == PadMode.Constant:
-            table = F.pad(raw_table, pad, 'constant', pad_value)
+            table = F.pad(raw_table, pad_shape, 'constant', pad_value)
         else:
             if pad_mode == PadMode.LastValue:
                 pad_value = raw_table[:, -1]
@@ -652,7 +417,7 @@ def pad(raw_table, n_col, pad_value, pad_mode):
                 pad_value = raw_table.mode(1)[0]
             else:
                 raise NotImplementedError(f'pad_mode: {pad_mode}')
-            table = torch.cat((raw_table, torch.unsqueeze(pad_value, 1).expand((-1, pad[1]))), 1)
+            table = torch.cat((raw_table, torch.unsqueeze(pad_value, 1).expand((-1, pad_shape[1]))), 1)
     elif n_col:
         table = raw_table[:, :n_col]
     else:
@@ -743,3 +508,21 @@ class ModuleDict(nn.Module):
 
     def forward(self, *args, **kwargs):
         return valmap(lambda md: md(*args, **kwargs), self._modules)
+
+
+def numpy_row_slice(arr, start, annual=False):
+    """
+
+    :param arr:
+    :param start:
+    :param annual:
+    :return:
+    """
+    idx = start
+    strided = np.lib.stride_tricks.as_strided
+    W = MAX_YR_LEN if annual else MAX_MTH_LEN
+    arr = np.pad(arr, (0, np.max(idx)), 'constant', constant_values=0)
+    m, n = arr.shape
+    s0, s1 = arr.strides
+    windows = strided(arr, shape=(m, n - W + 1, W), strides=(s0, s1, s1))
+    return windows[np.arange(len(idx)), idx]

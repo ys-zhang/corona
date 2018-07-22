@@ -11,3 +11,7 @@ from . import conf
 from . import utils
 from . import mp
 from . import core
+from corona.core import contract
+from corona.core import prob
+from corona.core import discount
+from corona.core import result

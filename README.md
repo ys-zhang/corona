@@ -6,6 +6,10 @@ An actuarial framework based on Pytorch (in development)
 - prophet 兼容相关： prophet
 - 模型点输入：mp
 
+### TODO
+
+ - Simply the result system.
+
 ### Create a product or contract
 
 ```{python3}
