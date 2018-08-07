@@ -119,13 +119,16 @@ class TestContract(unittest.TestCase):
     def testToSqlite(self):
         crst = self.contract(self.mp_idx, self.mp_value, 'GAAP')
         crst2 = self.contract(self.mp_idx, self.mp_value, 'PROFIT')
-        frst = crst.flat()
+        crst.to_sqlite(r'./gaap.db', '2018/05/01')
+        crst2.to_sqlite(r'./gaap.db', '2018/05/01')
 
-        print('\n')
-        df = frst['DB_OUTSIDE'].dataframe('2018/05/01')
-        # print(list(df.itertuples(name=None)))
-        # print(frst.t_offset_df)
-        frst.to_sqlite(r'./gaap.db', '2018/05/01')
+    def testToMSGPACK(self):
+        crst2 = self.contract(self.mp_idx, self.mp_value, 'PROFIT')
+        crst2.to_msgpack('2018-05-31', path=r'./profit.msg')
+
+    def testToHDF(self):
+        crst2 = self.contract(self.mp_idx, self.mp_value, 'PROFIT')
+        crst2.to_hdf('2018-05-31')
 
     def test(self):
         crst2 = self.contract(self.mp_idx, self.mp_value, 'PROFIT')

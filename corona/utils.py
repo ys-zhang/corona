@@ -511,13 +511,6 @@ class ModuleDict(nn.Module):
 
 
 def numpy_row_slice(arr, start, annual=False):
-    """
-
-    :param arr:
-    :param start:
-    :param annual:
-    :return:
-    """
     idx = start
     strided = np.lib.stride_tricks.as_strided
     W = MAX_YR_LEN if annual else MAX_MTH_LEN

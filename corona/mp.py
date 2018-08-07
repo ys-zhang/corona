@@ -1,5 +1,6 @@
 """This model provide an api compatible to Pytorch DataSet， 
-for details of the DataSet and Transforms in Pytorch, see `This Tutorial <https://pytorch.org/tutorials/beginner/data_loading_tutorial.html>`_ 
+for details of the DataSet and Transforms in Pytorch,
+see `This Tutorial <https://pytorch.org/tutorials/beginner/data_loading_tutorial.html>`_
 
 """
 from torch.utils.data import Dataset, DataLoader
@@ -20,11 +21,11 @@ class ModelPointSet(Dataset):
     _INDEX_ORDER = ['sex', 'age', 'pmt', 'bft', 'mth']
 
     _INDEX_MAP = {
-        'sex': 'SEX',
-        'age': 'AGE_AT_ENTRY',
-        'pmt': 'PREM_PAYBL_Y',
-        'bft': 'POL_TERM_Y',
-        'mth': 'DURATIONIF_M',
+        'sex': 'SEX',  # 0
+        'age': 'AGE_AT_ENTRY',  # 1
+        'pmt': 'PREM_PAYBL_Y',  # 2
+        'bft': 'POL_TERM_Y',  # 3
+        'mth': 'DURATIONIF_M',  # 4
     }
 
     _VALUE_ORDER = ['prem', 'sa', 'av', 'crd']
@@ -142,7 +143,8 @@ class Scale:
 
     Args:
         - ratio (float): the multiplier.
-        - exclude_idx_lst (Optional[List[int]]): index of mp_value that will not be scaled. default [3] i.e. index of credit rate. 
+        - exclude_idx_lst (Optional[List[int]]): index of mp_value that will not be scaled.
+           default [3] i.e. index of credit rate.
 
     """
 

@@ -444,8 +444,7 @@ class Clause(Module, ContractReferable, ClauseLike):
         """
         return self.prob_tables[context](mp_idx, mp_val, annual=annual)
 
-    def forward(self, mp_idx, mp_val, context=None, annual=False, *,
-                calculator_results=None):
+    def forward(self, mp_idx, mp_val, context=None, annual=False, *, calculator_results=None):
         """Cash flow calculation.
 
         :param Tensor mp_idx: index part of model point
@@ -469,15 +468,20 @@ class Clause(Module, ContractReferable, ClauseLike):
             val = self.base(mp_idx, mp_val, context)
             if not annual and not isinstance(self.base, AccountValue):
                 val = self.mth_converter(val)
-            cf = r * val
+            if annual:
+                cf = r * val
+            else:
+                cf = time_slice(r * val, mp_idx[:, 4])
         else:
             cf = 0
             r = 0
             val = 0
 
         qx = mp_val.new_zeros((1,)) if self.virtual else p
-
-        return CashFlow(cf, p, qx, 1, val, r, annual, self.meta_data.copy())
+        meta_data = self.meta_data.copy()
+        meta_data['context'] = context
+        meta_data['annual'] = annual
+        return CashFlow(cf, p, qx, 1, val, r, meta_data)
 
     def extra_repr(self):
         return "$NAME$: {}\n".format(self.name) +\
@@ -641,7 +645,7 @@ class ClauseGroup(ModuleDict, ClauseLike):
             if hasattr(module, 'name') and module.name is not None:
                 yield module.name
             else:
-                name = module._get_name()
+                name = module.__class__.__name__
                 i = d.get(name, 0) + 1
                 d[name] = i
                 yield f'{name}#{i}'
@@ -802,14 +806,13 @@ class Contract(Module):
         for c in self._calculators:
             yield c
 
-    def forward(self, mp_idx, mp_val, context=None, annual=False, *, slice_future=True):
+    def forward(self, mp_idx, mp_val, context=None, annual=False):
         """
 
         :param Tensor mp_idx: index part of model point
         :param Tensor mp_val: value part of model point
         :param str context: calculation context
         :param bool annual: annual or monthly result
-        :param bool slice_future: remove cash flows be for policy month or duration
         :rtype: GResult
         """
         with ExitStack() as stack:
@@ -820,8 +823,6 @@ class Contract(Module):
         # save model point information
         rst.mp_idx = mp_idx
         rst.mp_val = mp_val
-        if slice_future:
-            rst.slice_future_()
         return in_force(rst)
 
     def extra_repr(self):

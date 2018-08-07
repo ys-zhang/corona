@@ -3,16 +3,13 @@ Classes of results returned by contract related Modules
 """
 import collections
 import sqlite3
-from typing import Optional, Union, Iterable
+from typing import Iterable
 
 import numpy as np
 import pandas as pd
 import cytoolz
 from torch import Tensor
-
-from corona.mp import ModelPointSet
 from corona.conf import MAX_MTH_LEN, MAX_YR_LEN
-from corona.utils import time_slice, numpy_row_slice
 
 
 class CashFlow:
@@ -24,79 +21,29 @@ class CashFlow:
         :attr:`p` probability of the cash flow
         :attr:`qx` probability of kick out of the contract
         :attr:`lx` in force number before the cash flow happens
-        :attr:`base_val`: value of the base of the cashflow
-        :attr:`ratio_val`: value of the ratio of the cashflow
+        :attr:`base`: value of the base of the cashflow
+        :attr:`ratio`: value of the ratio of the cashflow
         :attr:`meta_data` meta_data of the Clause instance generated the cash flow
         :attr:`shape` shape of the cash flow
     """
 
-    cf: Union[Tensor, np.ndarray]
-    p: Union[Tensor, np.ndarray]
-    lx: Union[Tensor, np.ndarray]
-    base_val: Union[Tensor, np.ndarray]
-    ratio_val: Union[Tensor, np.ndarray]
-    meta_data: dict
-    mp_idx: Optional[Tensor]
-    mp_val: Optional[Tensor]
-    _future_sliced: bool
+    __slots__ = ("cf", "p", "qx", 'lx', 'base', 'ratio', 'meta_data', 'mp_idx', 'mp_val')
 
-    __slots__ = ("cf", "p", "qx", 'lx', 'base_val',
-                 'ratio_val', 'annual',
-                 'meta_data', 'mp_idx', 'mp_val', '_future_sliced')
-
-    def __init__(self, cf, p, qx, lx, base, ratio, annual, meta_data,
-                 mp_idx=None, mp_val=None, future_sliced=False):
+    def __init__(self, cf, p, qx, lx, base, ratio, meta_data, mp_idx=None, mp_val=None):
         self.cf = cf
         self.p = p
         self.qx = qx
         self.lx = lx
-        self.base_val = base
-        self.ratio_val = ratio
-        self.annual = annual
-        self.meta_data = meta_data
+        self.base = base
+        self.ratio = ratio
+        self.meta_data: dict = meta_data
         self.mp_idx = mp_idx
         self.mp_val = mp_val
-        self._future_sliced = future_sliced
-
-    @property
-    def future_sliced(self):
-        return self._future_sliced
-
-    @future_sliced.setter
-    def future_sliced(self, val):
-        assert val or (not self._future_sliced)
-        self._future_sliced = val
-
-    def slice_future_(self):
-        if self.future_sliced:
-            return self
-        dur = self.mp_idx[:, 4]
-        def trunc(var):
-            if isinstance(var, Tensor) and var.dim() == 2:
-                return time_slice(var, dur)
-            elif isinstance(var, np.ndarray):
-                try:
-                    return numpy_row_slice(var, dur.detach().numpy(), self.annual)
-                except AttributeError:
-                    return numpy_row_slice(var, dur, self.annual)
-            else:
-                return var
-        self.cf = trunc(self.cf)
-        self.p = trunc(self.p)
-        self.qx = trunc(self.qx)
-        self.lx = trunc(self.lx)
-        self.base_val = trunc(self.base_val)
-        self.ratio_val = trunc(self.ratio_val)
-        self.future_sliced = True
-        return self
 
     def __getitem__(self, item):
-        return CashFlow(self.cf[item], self.p[item],
-                        self.qx[item], self.lx[item], 
-                        self.base_val[item], self.ratio_val[item],
-                        self.annual, self.meta_data.copy(),
-                        self.mp_idx[item[0], :], self.mp_val[item[0], :],
-                        self.truncated)
+        return CashFlow(self.cf[item], self.p[item], self.qx[item], self.lx[item],
+                        self.base[item], self.ratio[item], self.meta_data.copy(),
+                        self.mp_idx[item[0], :], self.mp_val[item[0], :])
 
     def __repr__(self):
         return self.dataframe().__repr__()
@@ -121,18 +68,16 @@ class CashFlow:
         p = (self.p.detach().numpy() if isinstance(self.p, Tensor) else self.p) * broadcaster
         qx = (self.qx.detach().numpy() if isinstance(self.qx, Tensor) else self.qx) * broadcaster
         lx = (self.lx.detach().numpy() if isinstance(self.lx, Tensor) else self.lx) * broadcaster
-        base_val = (self.base_val.detach().numpy() if isinstance(self.base_val, Tensor) else self.base_val) \
-            * broadcaster
-        ratio_val = (self.ratio_val.detach().numpy() if isinstance(self.ratio_val, Tensor) else self.ratio_val) \
-            * broadcaster
+        base_val = (self.base.detach().numpy() if isinstance(self.base, Tensor) else self.base) * broadcaster
+        ratio_val = (self.ratio.detach().numpy() if isinstance(self.ratio, Tensor) else self.ratio) * broadcaster
         if convert_mp:
             mp_idx = self.mp_idx.detach().numpy()
             mp_val = self.mp_val.detach().numpy()
         else:
             mp_idx = self.mp_idx
             mp_val = self.mp_val
-        return CashFlow(cf, p, qx, lx, base_val, ratio_val, self.annual,
-                        self.meta_data.copy(), mp_idx, mp_val, self._future_sliced)
+        return CashFlow(cf, p, qx, lx, base_val, ratio_val,
+                        self.meta_data.copy(), mp_idx, mp_val)
 
     def dataframe(self, val_date=None, date_type='date')->pd.DataFrame:
         cash_flow = self.numpy(convert_mp=False).slice_future_()
@@ -155,13 +100,13 @@ class CashFlow:
         base_val = cash_flow.base_val.T
         ratio_val = cash_flow.ratio_val.T
         col_idx = pd.MultiIndex.from_product(
-            [['cf', 'p', 'qx', 'lx', 'icf', 'base_val', 'ratio_val'], range(mp_num)],
-            names=('val', 'mp')
+            [['cf', 'p', 'qx', 'lx', 'icf', 'base_val', 'ratio_val'], range(mp_num), [self.context]],
+            names=('val', 'mp', 'context')
         )
         return pd.DataFrame(
             np.hstack([cf, p, qx, lx, icf, base_val, ratio_val]),
             index=row_idx, columns=col_idx
-        ).swaplevel(axis=1).sort_index(axis=1).stack(0).sort_index(level='mp').swaplevel()
+        ).stack([2, 1]).sort_index(level=[-1, 0])
 
     def __getattr__(self, item):
         try:
@@ -184,8 +129,6 @@ class CashFlow:
     @property
     def icf(self):
         """ cf * p * lx
-
-        :rtype: Tensor
         """
         return self.pcf * self.lx
 
@@ -226,9 +169,8 @@ class CashFlow:
             meta_data = self.meta_data.copy()
             meta_data['t_offset'] = 0
             return CashFlow(self.cf / forward_rate.add(1).pow(self.t_offset),
-                            self.p, self.qx, self.lx, self.base_val,
-                            self.ratio_val, self.annual, meta_data,
-                            self.mp_idx, self.mp_val, self._future_sliced)
+                            self.p, self.qx, self.lx, self.base, self.ratio,
+                            meta_data, self.mp_idx, self.mp_val)
         else:
             return self
 
@@ -242,23 +184,10 @@ class CashFlow:
             meta_data = self.meta_data.copy()
             meta_data['t_offset'] = 1
             return CashFlow(self.cf * forward_rate.add(1).pow(1 - self.t_offset),
-                            self.p, self.qx, self.lx, self.base_val,
-                            self.ratio_val, self.annual, meta_data,
-                            self.mp_idx, self.mp_val, self._future_sliced)
+                            self.p, self.qx, self.lx, self.base, self.ratio,
+                            meta_data, self.mp_idx, self.mp_val)
         else:
             return self
-
-    def remove_offset_(self, forward_rate):
-        if self.t_offset != 0:
-            self.cf.div_(forward_rate.add(1).pow(self.t_offset))
-            self.t_offset = 0.
-        return self
-
-    def full_offset_(self, forward_rate):
-        if self.t_offset != 1:
-            self.cf.mul_(forward_rate.add(1).pow(1 - self.t_offset))
-            self.t_offset = 1.
-        return self
 
 
 class GResult:
@@ -286,19 +215,18 @@ class GResult:
                         * \text{lx}_{\text{new}} / \text{lx}_{\text{old}}
 
     """
-    _mp_val: Tensor
-    _mp_idx: Tensor
-    __slots__ = ('results', '_lx', 'qx', '_mp_idx', '_mp_val', '_future_sliced',
-                 'msc_results')
 
-    def __init__(self, results, qx=None, lx=1, mp_idx=None, mp_val=None,
-                 future_sliced=False, msc_results=None):
+    __slots__ = ('results', '_lx', 'qx', '_mp_idx', '_mp_val', 'msc_results')
+
+    def __init__(self, results, qx=None, lx=1, mp_idx=None, mp_val=None, msc_results=None):
         """
 
         :param results: OrderedDict of :class:`CashFlow`s or :class:`GResults`.
         :type results: OrderedDict
         :param Tensor qx: equivalent qx if the GResult object is treated as a single entity
         :param float or Tensor lx: number of in force before any of the cash flows of this GResult happens.
+        :param Tensor mp_idx: index part of model point
+        :param Tensor mp_val: value part of model point
         :param dict msc_results: dict of miscellaneous results, for example account value.
         """
         self.results = results  # type: collections.OrderedDict
@@ -307,14 +235,10 @@ class GResult:
         self.msc_results = {} if msc_results is None else msc_results
         self.mp_idx = mp_idx
         self.mp_val = mp_val
-        self._future_sliced = future_sliced
 
     @property
-    def mp_idx(self):
-        """ index part of the input model points
-
-        :rtype: Tensor
-        """
+    def mp_idx(self)->Tensor:
+        """ index part of the input model points """
         return self._mp_idx
 
     @mp_idx.setter
@@ -325,11 +249,8 @@ class GResult:
                 v.mp_idx = idx
 
     @property
-    def mp_val(self):
-        """ value part of the input model points
-
-        :rtype: Tensor
-        """
+    def mp_val(self)->Tensor:
+        """ value part of the input model points """
         return self._mp_val
 
     @mp_val.setter
@@ -341,6 +262,7 @@ class GResult:
 
     @property
     def lx(self):
+        """ number of in force just before the Contract or ClauseGroup which generates the Group Result """
         return self._lx
 
     @lx.setter
@@ -349,16 +271,6 @@ class GResult:
         self._lx = lx
         for v in self.results.values():  # type: GResult or CashFlow
             v.lx = v.lx * lx / _lx
-
-    @property
-    def future_sliced(self):
-        return self._future_sliced
-
-    @future_sliced.setter
-    def future_sliced(self, val: bool):
-        assert val or (not self._future_sliced)
-        for v in self.values():
-            v.future_sliced = val
 
     def lx_mul_(self, ts):
         """Multiply `lx` by `ts` equivalent to::
@@ -372,14 +284,6 @@ class GResult:
         self._lx = self._lx * ts
         for v in self.results.values():  # type: GResult or CashFlow
             v.lx = v.lx * ts
-        return self
-
-    def slice_future_(self):
-        if self.future_sliced:
-            return self
-        for cf in self.cashflows():
-            cf.slice_future_()
-        self.future_sliced = True
         return self
 
     def __getitem__(self, item):
@@ -415,110 +319,165 @@ class GResult:
     def __iter__(self):
         raise NotImplemented
 
-    def flat(self, val_date=None):
-        """ Flat result of the collection
-        
-        :rtype: FResult
-        """
-        if self.mp_idx is not None and self.mp_val is not None:
-            return FResult(self, val_date=val_date)
-        else:
-            raise RuntimeError('mp info missing')
-
-
-class FResult(collections.OrderedDict):
-    """ Container to store a **flat** collection of :class:`CashFlow`s with the name of
-    the clause generates the cash flow as the key. The internal data are numpy ndarrays
-    """
-
-    MODEL_POINT_DATA_SET_CLASS = ModelPointSet
-
-    def __init__(self, g_result, val_date=None):
-        """
-        :param GResult g_result: g_result
-        """
-        super().__init__(self._make_iter(g_result))
-        self._mp_idx = g_result.mp_idx.detach().numpy()
-        self._mp_val = g_result.mp_val.detach().numpy()
-        self.val_date = val_date
-        self.msc_results = dict((k, v.detach().numpy()) for k, v in g_result.msc_results.items())
-
-    def __getattr__(self, item):
-        try:
-            return self[item]
-        except KeyError:
-            try:
-                return self.msc_results[item]
-            except KeyError:
-                raise AttributeError(item)
-
-    @staticmethod
-    def _make_iter(raw_result):
-        for i, v in raw_result.items():
-            if isinstance(v, GResult):
-                yield from FResult._make_iter(v)
-            elif isinstance(v, CashFlow):
-                yield i, v.numpy()
-            else:
-                raise TypeError(v)
-
-    @property
-    def cf(self):
-        return collections.OrderedDict(((k, v.cf) for k, v in self.items()))
-
-    def pcf(self, value_only=False):
-        if value_only:
-            return [v.pcf for v in self.values()]
-        else:
-            return collections.OrderedDict(((k, v.pcf) for k, v in self.items()))
-
-    def p(self, value_only=False):
-        if value_only:
-            return [v.p for v in self.values()]
-        else:
-            return collections.OrderedDict(((k, v.p) for k, v in self.items()))
-
-    def qx(self, value_only=False):
-        if value_only:
-            return [v.qx for v in self.values()]
-        else:
-            return collections.OrderedDict(((k, v.qx) for k, v in self.items()))
-
-    def px(self, value_only=False):
-        if value_only:
-            return [v.px for v in self.values()]
-        else:
-            return collections.OrderedDict(((k, v.px) for k, v in self.items()))
-
-    def icf(self, value_only=False):
-        if value_only:
-            return [v.icf for v in self.values()]
-        else:
-            return collections.OrderedDict(((k, v.icf) for k, v in self.items()))
-
-    def lx(self, value_only=False):
-        if value_only:
-            return [v.lx for v in self.values()]
-        else:
-            return collections.OrderedDict(((k, v.lx) for k, v in self.items()))
-
-    @property
-    def meta_data(self)->dict:
-        """ meta_data of contained cashflows in the FResult
-        """
-        return cytoolz.merge_with(np.array, *[v.meta_data for v in self.values()])
-    
-    def to_sql(self, conn, val_date):
+    def to_sql(self, conn, val_date, batch_id=0):
         """ save the FResult to a sql database
 
         :param conn: connection of a database, see pandas.to_sql
         :param val_date: valuation date
+        :param batch_id: the batch identifier used to identify data in the database
         """
-        for var_name, cf in self.items():
-            df = cf.dataframe(val_date, 'date')
-            df.to_sql(var_name, conn)
-        pd.DataFrame.from_dict(self.meta_data).to_sql('meta_data', conn)
+        def add_batch_id(x):
+            x['batch_id'] = batch_id
+            return x.set_index('batch_id', append=True)
+        for cf in self.cashflows():
+            df = add_batch_id(cf.dataframe(val_date, 'date'))
+            df.to_sql(cf.name, conn, if_exists='append')
+        cf_meta_date = cytoolz.merge_with(np.array, *[v.meta_data for v in self.cashflows()])
+        meta_frame = add_batch_id(pd.DataFrame.from_dict(cf_meta_date)).set_index('name', append=True)
+        meta_frame.to_sql('cashflow_meta_data', conn, if_exists='append')
 
-    def to_sqlite(self, path, val_date):
+    def to_sqlite(self, path, val_date, batch_id=0):
         with sqlite3.connect(path) as conn:
-            self.to_sql(conn, val_date)
+            self.to_sql(conn, val_date, batch_id)
+
+    def to_msgpack(self, val_date, batch_id=0, mode='flat', *, path=None):
+        """Save the result to a message pack file
+
+        :param Union[date, str] val_date: valuation date of the
+        :param int batch_id: which batch the input model point is.
+        :param str mode: mode the result will be saved
+        :param str path: the path of the msg pack will be saved to
+        :return:
+        """
+        assert mode == 'flat'
+        import msgpack
+        d = {
+            'meta' : {
+                'val_date': val_date,
+                'batch_id': batch_id,
+                'mode'    : mode, },
+            'value': [self]
+        }
+        if path:
+            with open(path, 'w+b') as file:
+                msgpack.dump(d, file, default=encoder)
+        else:
+            return msgpack.packb(d, default=encoder)
+
+    def to_hdf(self, val_date, batch_id=0, mode='flat', *, path=None):
+        assert mode == 'flat'
+        import h5py
+
+        if path is None:
+            path = f"{val_date}_batch{batch_id}.h5"
+
+        def add_attr(file, d: dict):
+            for k, v in d.items():
+                file.attrs[k] = v
+
+        def save_mp(file: h5py.File):
+            gp = file.create_group('mp')
+            mp_idx = self.mp_idx.detach().numpy()
+            mp_val = self.mp_val.detach().numpy()
+            gp.create_dataset('mp_idx', data=mp_idx, compression="gzip", compression_opts=9)
+            gp.create_dataset('mp_val', data=mp_val, compression="gzip", compression_opts=9)
+
+        def save_cashflow(gp: h5py.Group, cf: CashFlow):
+            name = cf.name
+            cf_gp = gp.create_group(name)
+            add_attr(cf_gp, cf.meta_data)
+            cf_gp.create_dataset('cf', data=np.array(encoder(cf.cf)),
+                                 compression="gzip", compression_opts=9)
+            cf_gp.create_dataset('p', data=np.array(encoder(cf.p)),
+                                 compression="gzip", compression_opts=9)
+            cf_gp.create_dataset('base', data=np.array(encoder(cf.base)),
+                                 compression="gzip", compression_opts=9)
+            cf_gp.create_dataset('ratio', data=np.array(encoder(cf.ratio)),
+                                 compression="gzip", compression_opts=9)
+
+        with h5py.File(path, 'w') as f:
+            # add meta information
+            meta = {
+                'val_date': val_date,
+                'batch_id': batch_id,
+                'mode'    : mode,
+            }
+            add_attr(f, meta)
+            save_mp(f)
+            group = f.create_group('cashflows')
+            for cashflow in self.cashflows():
+                save_cashflow(group, cashflow)
+
+    def to_excel(self, mp, val_date=None, path=None):
+        assert mp is not None
+        rst = {}
+        def get_mp(val_, mp_):
+            try:
+                return encoder(val_[mp_, :])
+            except TypeError:
+                return encoder(val_)
+            except IndexError:
+                return encoder(val_[mp_])
+        for cf in self.cashflows():
+            rst[cf.name] = {
+                'base' : get_mp(cf.base, mp),
+                'ratio': get_mp(cf.ratio, mp),
+                'cf'   : get_mp(cf.cf, mp),
+                'lx'   : get_mp(cf.lx, mp),
+                'qx'   : get_mp(cf.qx, mp),
+                'p'    : get_mp(cf.p, mp),
+                'icf'  : get_mp(cf.icf, mp),
+            }
+
+        base = pd.DataFrame.from_dict({k: v['base'] for k, v in rst.items()})
+        ratio = pd.DataFrame.from_dict({k: v['ratio'] for k, v in rst.items()})
+        cf = pd.DataFrame.from_dict({k: v['cf'] for k, v in rst.items()})
+        qx = pd.DataFrame.from_dict({k: v['qx'] for k, v in rst.items()})
+        lx = pd.DataFrame.from_dict({k: v['lx'] for k, v in rst.items()})
+        p = pd.DataFrame.from_dict({k: v['p'] for k, v in rst.items()})
+        icf = pd.DataFrame.from_dict({k: v['icf'] for k, v in rst.items()})
+
+        pd.concat()
+
+
+def encoder(obj):
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, Tensor):
+        return obj.tolist()
+    elif isinstance(obj, CashFlow):
+        return {
+            '__type__': 'CashFlow',
+            'meta'    : {k: encoder(v) for k, v in obj.meta_data.items()},
+            'cf'      : encoder(obj.cf),
+            'p'       : encoder(obj.p),
+            'qx'      : encoder(obj.qx),
+            'base'    : encoder(obj.base),
+            'ratio'   : encoder(obj.ratio),
+        }
+    elif isinstance(obj, GResult):
+        return {
+            '__type__'   : 'GResult',
+            'msc_results': {k: encoder(v) for k, v in obj.msc_results.items()},
+            'lx'         : encoder(obj.lx),
+            'qx'         : encoder(obj.qx),
+            'mp_idx'     : encoder(obj.mp_idx),
+            'mp_val'     : encoder(obj.mp_val),
+            'cashflows'  : [encoder(cf) for cf in obj.cashflows()],
+        }
+    else:
+        return obj
+
+
+def msgpack_decoder(obj):
+    if b'__type__' in obj:
+        return msgpack_decoder.decoder_dict[obj['__type__']](obj)
+    elif isinstance(obj, list):
+        return np.array(obj)
+    else:
+        return obj
+
+
+msgpack_decoder.decoder_dict = {
+
+}
