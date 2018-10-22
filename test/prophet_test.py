@@ -76,5 +76,5 @@ class TestFacTable(unittest.TestCase):
         ProphetTable.cache_to_hdf('./tables.h5')
 
     def testSqliteSaver(self):
-        prlife_read('./test/data/TABLES')
+        prlife_read('./data/TABLES')
         ProphetTable.cache_to_sqlite('./tables.db')

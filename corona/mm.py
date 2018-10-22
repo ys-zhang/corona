@@ -1,15 +1,17 @@
 from typing import Optional
 import torch
+from torch import nn
+
 from corona.utils import make_parameter
 
 
-class LinearSensitivity(torch.nn.Module):
+class LinearSensitivity(nn.Module):
 
     weight: Optional[torch.Tensor]
     bias: Optional[torch.Tensor]
     mm: bool  # if weight act to base using matrix multiply, default False
 
-    def __init__(self, weight=None, bias=None, mm=False):
+    def __init__(self, weight=None, bias=None, mm=False, *, name=None):
         super().__init__()
         if weight is None:
             self.register_parameter('weight', None)
@@ -20,6 +22,7 @@ class LinearSensitivity(torch.nn.Module):
         else:
             self.bias = make_parameter(bias)
         self.mm = mm
+        self.name = name
 
     def forward(self, base):
         try:

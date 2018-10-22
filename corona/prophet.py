@@ -65,6 +65,7 @@ import enum
 import os
 import warnings
 import sqlite3
+from typing import Dict
 
 import pyparsing as pp
 import pandas as pd
@@ -115,7 +116,7 @@ OutputFormatLine = pp.Suppress('Output_Format,') + pp.restOfLine\
 MPTableName = pp.restOfLine.setResultsName('tableCaption')
 
 
-class ProphetTableType(enum.IntEnum):
+class ProphetTableType(enum.Enum):
     GenericTable = 0
     ModelPoint = 1
     Sales = 2
@@ -159,7 +160,7 @@ class ProphetTable:
     MP_PMT_COL = 'PREM_PAYBL_Y'
     MP_MTH_COL = 'DURATIONIF_M'
 
-    _ALL_TABLES_ = {}
+    _ALL_TABLES_ = {}  # type: Dict[ProphetTable]
 
     _BANDED_ATTRIBUTE = {'loc', 'iloc'}
 
@@ -413,12 +414,12 @@ class ProphetTable:
         assert self.tabletype in [ProphetTableType.Probability, ProphetTableType.GenericTable], \
             "Only Probability Table can be convert to SelectionFactor"
         fac = self.values.T
-        from corona.core.prob import SelectionFactor
+        from corona.mm import LinearSensitivity
         if klass is None:
-            klass = SelectionFactor
+            klass = LinearSensitivity
         else:
-            if not issubclass(klass, SelectionFactor):
-                warnings.warn("{} is not subclass of {}".format(klass, SelectionFactor))
+            if not issubclass(klass, LinearSensitivity):
+                warnings.warn("{} is not subclass of {}".format(klass, LinearSensitivity))
 
         return klass(fac, *args_of_klass, name=self.tablename, **kwargs_of_klass)
 
@@ -450,6 +451,8 @@ class ProphetTable:
         with sqlite3.connect(path) as conn:
             for tablename, table in cls._ALL_TABLES_.items():
                 table.dataframe.to_sql(tablename, conn)
+            pd.DataFrame([(tbl.tablename, tbl.tabletype.name) for tbl in cls._ALL_TABLES_.values()],
+                         columns=['name', 'type']).to_sql("table_info", conn)
 
 
 read_generic_table = ProphetTable.read_generic_table
@@ -460,7 +463,7 @@ read_table_of_table = ProphetTable.read_table_of_table
 
 
 def read_assumption_tables(folder, *, tot_pattern=None,
-                           param_pattern=None, prob_folder=None,
+                           param_pattern=None, prob_folder=None, gender_suffix=None,
                            exclude_folder=None,
                            exclude_pattern=None, clear_cache=False):
     """ Read All tables in folder. First exclude_folder and exclude_pattern are
@@ -537,6 +540,21 @@ def read_assumption_tables(folder, *, tot_pattern=None,
         'gen': []
     }
 
+    if gender_suffix is not None:
+        male_suffix, female_suffix = gender_suffix
+        def male_prob(name):
+            return name.endswith(male_suffix)
+
+        def female_prob(name):
+            return name.endswith(female_suffix)
+    else:
+        male_suffix = female_suffix = ''
+        def male_prob(_): return False
+
+        def female_prob(_): return False
+
+    single_gender_prob = {}
+
     for root, dirs, files in os.walk(folder, followlinks=True):
         for f in files:
             f = os.path.join(root, f)
@@ -545,13 +563,28 @@ def read_assumption_tables(folder, *, tot_pattern=None,
             elif exclude_folder(f):
                 continue
             elif prob_folder(f):
-                rst['prob'].append(read_probability_table(f))
+                f_name = get_name(f)
+                if male_prob(f_name):
+                    try:
+                        single_gender_prob[f_name[:-(len(male_suffix))]]['m_file'] = f
+                    except KeyError:
+                        single_gender_prob[f_name[:-(len(male_suffix))]] = {'m_file': f}
+                elif female_prob(f_name):
+                    try:
+                        single_gender_prob[f_name[:-(len(male_suffix))]]['f_file'] = f
+                    except KeyError:
+                        single_gender_prob[f_name[:-(len(male_suffix))]] = {'f_file': f}
+                else:
+                    rst['prob'].append(read_probability_table(f))
             elif param_pattern(f):
                 rst['param'].append(read_parameter_table(f))
             elif tot_pattern(f):
                 rst['tot'].append(read_table_of_table(f))
             else:
                 rst['gen'].append(read_generic_table(f))
+
+    for fs in single_gender_prob.values():
+        rst['prob'].append(read_probability_table(**fs))
 
     return rst
 
@@ -566,7 +599,7 @@ def prlife_read(folder, clear_cache=True):
     :return: dict of tables with tablename as key
     :rtype: dict
     """
-    return read_assumption_tables(folder, prob_folder='MORT',
+    return read_assumption_tables(folder, prob_folder='MORT',  gender_suffix=('_M', '_F'),
                                   param_pattern=r'PARAMET_.+',
                                   tot_pattern='GLOBAL|.*_TABLE_CONFIG',
                                   exclude_folder='CROSS_LASTVAL',

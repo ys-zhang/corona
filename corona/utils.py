@@ -1,7 +1,9 @@
+from __future__ import annotations
 import weakref
 import re
 import enum
 import warnings
+from collections import OrderedDict
 
 import torch
 from torch import Tensor, nn
@@ -35,8 +37,7 @@ class Repeat(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad_output):
-        return torch.stack(grad_output.split(ctx.split_times, ctx.axis))\
-            .sum(0), None, None
+        return torch.stack(grad_output.split(ctx.split_times, ctx.axis)).sum(0), None, None
 
 
 repeat = Repeat.apply
@@ -78,13 +79,12 @@ def repeat_table(table: Tensor, repeats: int=12)->Tensor:
 
 
 def convolve(unit, nb_plan):
-    """convolution of nb_plan over unit, used in calcultion of new buisiness
+    """convolution of nb_plan over unit, used in calculation of new business
     """
     weight = flip(nb_plan)
     padding = weight.shape[-1] - 1
     length = unit.shape[-1]
-    return conv1d(unit.unsqueeze(0),
-                  weight.unsqueeze(0), padding=padding)\
+    return F.conv1d(unit.unsqueeze(0), weight.unsqueeze(0), padding=padding)\
         .squeeze().narrow(-1, 0, length)
 
 
@@ -203,34 +203,6 @@ def time_push(tbl: Tensor, to: Tensor)->Tensor:
                         for ts, i in zip(ts_lst, to_lst)], 0)
 
 
-class WaitingPeriod(nn.Module):
-    """ Represents Waiting Period for liabilities.
-    first `period_in_mth` columns of each input in `inputs` is annihilated.
-
-    Construction:
-        :parameter int period_in_mth: length of the waiting period
-            in number of months
-
-    Inputs:
-        :parameter Tensor *inputs: 2-D Tensors
-    """
-    def __init__(self, period_in_mth: int):
-        super().__init__()
-        assert isinstance(period_in_mth, int)
-        self.period_in_mth = period_in_mth
-
-    def forward(self, *seq):
-        if len(seq) > 1:
-            seq = [x.copy() for x in seq]
-            for x in seq:
-                x[:, :self.period_in_mth] = 0
-            return seq
-        else:
-            rst = seq[0].copy()
-            rst[:, :self.period_in_mth] = 0
-            return rst
-
-
 class Flip(torch.autograd.Function):
     """ flip a tensor
     The dim of the tensor can only be 1 or 2.
@@ -278,15 +250,21 @@ class CF2M(nn.Module):
         this attribute.
 
     """
+
+    ONE_HOT = torch.eye(12, dtype=torch.float64)
+
     def __init__(self, only_at_month=None):
         super().__init__()
-        self.only_at_month = only_at_month
-
-    def forward(self, table):
-        if self.only_at_month is None:
-            return repeat(table)
+        if only_at_month is None:
+            self.only_at_month = None
         else:
-            raise NotImplementedError(self.only_at_month)
+            self.only_at_month = self.ONE_HOT[only_at_month, :]
+
+    def forward(self, cf: Tensor):
+        rst = repeat(cf)
+        if self.only_at_month is not None:
+            rst = rst * self.only_at_month.repeat(**cf.shape)
+        return rst
 
 
 def account_value(a0: Tensor, rate: Tensor, after_credit: Tensor=None, before_credit: Tensor=None):
@@ -348,12 +326,12 @@ def make_parameter(param, *, pad_n_col=None, pad_value=None, pad_mode=None) -> n
     return nn.Parameter(param)
 
 
-def make_model_dict(modules, default_key=None):
+def make_model_dict(modules, default_key=None)->ModuleDict:
     assert modules is None or isiterable(modules)
     if isinstance(modules, dict):
         return ModuleDict(modules, default_key=default_key)
     elif modules is not None:
-        modules = dict([(p.context, p) for p in modules])
+        modules = {p.context: p for p in modules}
         return ModuleDict(modules, default_key)
     else:
         return ModuleDict(default_key=default_key)
@@ -446,7 +424,7 @@ class ClauseReferable:
 
     def __init__(self):
         self._clause = None
-        """ weak proxy of clause the ratio table belongs to  """
+        """ weak proxy of clause the ratio table belongs to """
 
     @property
     def clause(self):
@@ -474,40 +452,21 @@ class ContractReferable:
         self._contract = weakref.ref(contract)
 
 
-class ModuleDict(nn.Module):
-
-    def __init__(self, module_dict: dict=None, default_key=None):
-        super().__init__()
+class ModuleDict(nn.ModuleDict):
+    """ ModuleDict support default key """
+    
+    def __init__(self, modules=None, default_key=None):
+        super().__init__(modules)
         self.default_key = default_key
-        if module_dict is not None:
-            for k, m in module_dict.items():
-                self.add_module(str(k), m)
 
     def __getitem__(self, key):
         try:
-            return self._modules[str(key)]
+            return super().__getitem__(key)
         except KeyError:
-            return self._modules[str(self.default_key)]
-
-    def __setitem__(self, key, module):
-        assert isinstance(module, nn.Module)
-        return setattr(self, str(key), module)
-
-    def __iter__(self):
-        return iter(self._modules.values())
-
-    def __len__(self):
-        return len(self._modules)
-
-    def __dir__(self):
-        return list(self._modules.keys())
-
-    def re_select(self, patten):
-        patten = re.compile(patten)
-        return list(keyfilter(patten.fullmatch, self._modules).values())
+            return super().__getitem__(self.default_key)
 
     def forward(self, *args, **kwargs):
-        return valmap(lambda md: md(*args, **kwargs), self._modules)
+        return {k: md(*args, **kwargs) for k, md in self.items()}
 
 
 def numpy_row_slice(arr, start, annual=False):

@@ -1,11 +1,33 @@
 import unittest
-from corona.core.contract import *
+from corona.core import *
 from corona.core.creditstrat import *
-from corona.core.prob import *
-from corona.core.prob.cn import *
-from corona.prophet import *
-from corona.mp import *
+from corona.core import cn
+from corona.core.contract import AccountValueCalculator, ClauseReferable
 import pandas as pd
+import torch
+import numpy as np
+
+ul_con = Contract("UL_EXAMPLE",
+                  SequentialGroup(
+                      AClause('FEE', ratio_tables=-10., t_offset=0,
+                              base=OnesBase(), prob_tables=Inevitable(),
+                              virtual=True),
+                      AClause('CREDIT_H1', ratio_tables=KeepCurrentCredit(.5),
+                              base=AccountValue(), prob_tables=Inevitable(),
+                              contexts_exclude='~PROFIT', t_offset=.5,
+                              virtual=True),
+                      ParallelGroup(
+                          Clause('DB_INSIDE', ratio_tables=1., t_offset=.5,
+                                 base=AccountValue(),
+                                 prob_tables=cn.CL13_I, contexts_exclude='GAAP, SOME_OTHER', virtual=True),
+                          Clause('DB_OUTSIDE', ratio_tables=.6, t_offset=.5,
+                                 base=AccountValue(),
+                                 prob_tables=cn.CL13_I),
+                          name='DB'),
+                      AClause('CREDIT_H2', ratio_tables=KeepCurrentCredit(.5),
+                              base=AccountValue(), prob_tables=Inevitable(),
+                              contexts_exclude='~PROFIT', t_offset=.5,
+                              virtual=True),))
 
 
 class TestContract(unittest.TestCase):
@@ -18,30 +40,7 @@ class TestContract(unittest.TestCase):
                                     [1, 42, 1, 105, 1]]).long()
         self.mp_value = torch.tensor([[10000, 10000, 10000, 0.04],
                                       [10000, 10000, 10000, 0.05]], dtype=torch.double)
-        self.contract = \
-            Contract("UL_EXAMPLE",
-                     SequentialGroup(
-                         AClause('FEE', ratio_tables=-10., t_offset=0,
-                                 base=OnesBase(), prob_tables=Inevitable(),
-                                 virtual=True),
-                         AClause('CREDIT_H1', ratio_tables=KeepCurrentCredit(.5),
-                                 base=AccountValue(), prob_tables=Inevitable(),
-                                 contexts_exclude='~PROFIT', t_offset=.5,
-                                 virtual=True),
-                         ParallelGroup(
-                             Clause('DB_INSIDE', ratio_tables=1., t_offset=.5,
-                                    base=AccountValue(),
-                                    prob_tables=CL13_I, contexts_exclude='GAAP, SOME_OTHER', virtual=True),
-                             Clause('DB_OUTSIDE', ratio_tables=.6, t_offset=.5,
-                                    base=AccountValue(),
-                                    prob_tables=CL13_I),
-                             name='DB'),
-                         AClause('CREDIT_H2', ratio_tables=KeepCurrentCredit(.5),
-                                 base=AccountValue(), prob_tables=Inevitable(),
-                                 contexts_exclude='~PROFIT', t_offset=.5,
-                                 virtual=True),
-                        )
-                     )
+        self.contract = ul_con
 
     @unittest.skip('跳过contract.__repr__')
     def testRepr(self):
@@ -61,7 +60,7 @@ class TestContract(unittest.TestCase):
     def testSideEffect(self):
         lst = [c for c in self.contract.all_clauses() if isinstance(c.base, AccountValue)]
         self.assertSequenceEqual([c.base.key for c in lst],
-                                 ['FEE', 'CREDIT-H1', 'CREDIT-H1', 'CREDIT-H1'])
+                                 ['FEE', 'CREDIT_H1', 'CREDIT_H1', 'CREDIT_H1'])
         contract = \
             Contract("UL_EXAMPLE2",
                      SequentialGroup(
@@ -71,9 +70,9 @@ class TestContract(unittest.TestCase):
                          ParallelGroup(
                              Clause('DB-INSIDE', ratio_tables=1., t_offset=.5,
                                     base=AccountValue(),
-                                    prob_tables=CL13_I, contexts_exclude='GAAP, SOME_OTHER', virtual=True),
+                                    prob_tables=cn.CL13_I, contexts_exclude='GAAP, SOME_OTHER', virtual=True),
                              Clause('DB-OUTSIDE', ratio_tables=.6, t_offset=.5,
-                                    base=AccountValue(), prob_tables=CL13_I),
+                                    base=AccountValue(), prob_tables=cn.CL13_I),
                              name='DB'
                          ),
                          AClause('CREDIT-H2', ratio_tables=KeepCurrentCredit(.5), t_offset=.5,
@@ -108,32 +107,7 @@ class TestContract(unittest.TestCase):
     def testForward(self):
         crst = self.contract(self.mp_idx, self.mp_value, 'GAAP')
         crst2 = self.contract(self.mp_idx, self.mp_value, 'PROFIT')
-        frst = crst.flat()
-
-        print('\n')
-        # df = frst['DB_OUTSIDE'].dataframe('2018/05/01').stack(0)
-        # print(list(df.itertuples(name=None)))
-        # print(frst['DB_OUTSIDE'].dataframe('2018/05/01'))
-        print(pd.DataFrame(frst.AccountValue.T))
-
-    def testToSqlite(self):
-        crst = self.contract(self.mp_idx, self.mp_value, 'GAAP')
-        crst2 = self.contract(self.mp_idx, self.mp_value, 'PROFIT')
-        crst.to_sqlite(r'./gaap.db', '2018/05/01')
-        crst2.to_sqlite(r'./gaap.db', '2018/05/01')
-
-    def testToMSGPACK(self):
-        crst2 = self.contract(self.mp_idx, self.mp_value, 'PROFIT')
-        crst2.to_msgpack('2018-05-31', path=r'./profit.msg')
-
-    def testToHDF(self):
-        crst2 = self.contract(self.mp_idx, self.mp_value, 'PROFIT')
-        crst2.to_hdf('2018-05-31')
-
-    def test(self):
-        crst2 = self.contract(self.mp_idx, self.mp_value, 'PROFIT')
-        frst = crst2.flat()
-        frst.to_sql(r'./gaap.db', '2018/05/01')
+        print(crst)
 
 
 class TestBaseConverter(unittest.TestCase):
@@ -150,7 +124,7 @@ class TestBaseConverter(unittest.TestCase):
 
     def testPremPayed(self):
         converter = PremPayed()
-        rst = converter(self.mp_idx, self.mp_val)
+        rst = converter(self.mp_idx, self.mp_val, annual=True)
 
         def f(p, b, prm):
             r = np.arange(MAX_YR_LEN) + 1.

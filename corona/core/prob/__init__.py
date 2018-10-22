@@ -6,5 +6,3 @@ Models of Probability
 
 """
 
-from .prob import *
-from . import cn

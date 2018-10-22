@@ -3,8 +3,8 @@ from typing import Optional
 import torch
 from torch import Tensor
 from torch.nn import Module, Parameter
-from corona.conf import MAX_YR_LEN
-from corona.utils import repeat, time_slice, make_parameter
+from ...conf import MAX_YR_LEN
+from ...utils import repeat, time_slice, make_parameter
 
 __all__ = ['Probability', 'Inevitable']
 

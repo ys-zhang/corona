@@ -1,0 +1,31 @@
+{% macro importModule(module) %}
+{% if module.alias != module.name %}
+import {{ module.name }} as {{ module.alias }}
+{% else %}
+import {{ module.name }}
+{% endif %}
+{% endmacro %}
+
+
+{% macro codeOf(t_obj, use_alias=True) %}
+{% if t_obj is string %}
+'{{ t_obj }}'
+{% elif t_obj.primary_key is not defined %}
+{{ t_obj }}
+{% elif t_obj.primary_key is not none and use_alias %}
+{{ t_obj.primary_key }}
+{% else %}
+{% filter indent %}
+{{ t_obj.TARGET }}(
+{% for slot in t_obj.SLOTS %}
+{% if loop.first and slot is iterable %}
+{{ t_obj | attr(slot.slot_name) | map(codeOf) | join(',\n') }}
+{% else %}
+{{ slot.slot_name }}={{ codeOf(t_obj | attr(slot.slot_name)) | trim}}{{ '' if loop.last else ',' }}
+{% endif %}
+{% endfor %}
+{% endfilter %})
+{% endif %}
+{% endmacro %}
+
+
