@@ -142,7 +142,6 @@ def time_slice(tbl: Tensor, aft: Tensor, pad_value=0.)->Tensor:
             pad_value * \chi_{j + aft \ge n}
 
     """
-    aft = aft.long()
     ts_lst = torch.unbind(tbl, 0)
     aft_lst = aft.tolist()
     return torch.stack([time_slice1d(ts, i, pad_value)
@@ -172,7 +171,6 @@ def time_trunc(tbl: Tensor, aft: Tensor, fill=0)->Tensor:
 
     if fill is None then :math:`fill_i = out_{i, aft-1}`
     """
-    aft = aft.long()
     aft_lst = aft.tolist()
     ts_lst = torch.unbind(tbl, 0)
     return torch.stack([time_trunc1d(ts, i, fill)
@@ -196,7 +194,6 @@ def time_push1d(ts: Tensor, to)->Tensor:
 
 
 def time_push(tbl: Tensor, to: Tensor)->Tensor:
-    to = to.long()
     to_lst = to.tolist()
     ts_lst = torch.unbind(tbl, 0)
     return torch.stack([time_push1d(ts, i)

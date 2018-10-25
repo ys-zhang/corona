@@ -11,7 +11,7 @@ class LinearSensitivity(nn.Module):
     bias: Optional[torch.Tensor]
     mm: bool  # if weight act to base using matrix multiply, default False
 
-    def __init__(self, weight=None, bias=None, mm=False, *, name=None):
+    def __init__(self, weight=None, bias=None, mm: bool=False, *, name: Optional[str]=None):
         super().__init__()
         if weight is None:
             self.register_parameter('weight', None)
@@ -24,7 +24,7 @@ class LinearSensitivity(nn.Module):
         self.mm = mm
         self.name = name
 
-    def forward(self, base):
+    def forward(self, base, **kwargs):
         try:
             if not self.mm:
                 wb = self.weight * base

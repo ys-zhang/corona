@@ -414,7 +414,7 @@ class ProphetTable:
         assert self.tabletype in [ProphetTableType.Probability, ProphetTableType.GenericTable], \
             "Only Probability Table can be convert to SelectionFactor"
         fac = self.values.T
-        from corona.mm import LinearSensitivity
+        from corona.core.mm import LinearSensitivity
         if klass is None:
             klass = LinearSensitivity
         else:

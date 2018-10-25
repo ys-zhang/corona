@@ -97,6 +97,7 @@ We provide 2 classes to help describe the relationship between clauses"
 
 All types of groups support nesting.
 """
+from __future__ import annotations
 import re
 import random
 import weakref
@@ -105,7 +106,7 @@ from collections import OrderedDict
 from functools import reduce, lru_cache
 from itertools import accumulate
 from operator import mul
-from typing import Optional, Iterable, Dict, Callable, List, Union
+from typing import Optional, Iterable, Dict, Callable, List, Union, Pattern, AnyStr, Match
 from contextlib import ExitStack
 
 import numpy as np
@@ -118,37 +119,69 @@ from ..conf import MAX_YR_LEN
 from ..utils import CF2M, repeat, account_value, make_model_dict, Lambda, \
     make_parameter, ClauseReferable, ContractReferable, ModuleDict, time_push, time_slice
 from .cashflow import CashFlow
+from .prob.prob import Inevitable, Probability
+
+Context = AnyStr
 
 
-@lru_cache(128)
-def parse_context(context: str):
-    try:
-        if '@' not in context:
-            return None, context
+class Controller:
+    """ The instance of this Class controls calculation of :class:`Contract`. It provides information
+    of what assumptions the contract will use throw :attr:`context`,
+    :attr:`name_pat` and :attr:`base_klass` act like filters to :class:`Clause` of the contract and
+    :class:`BaseConverter` in clauses. name_pat filter clause by checking if it can match the name of
+    the clause, and base_klass filter BaseConverter using `isinstance`
+
+    """
+    CHECKER = re.compile(r"(?P<context>\w+)@(?P<name_pat>[^ \t\n\r\f\v#]+)?#(?P<base_klass>\w+)?")
+    context: Context
+    name_pat: Optional[Pattern]
+    base_klass: type
+
+    def __init__(self, pattern: Optional[AnyStr]=None):
+        if pattern is None:
+            self._setup()
+            self._repr = None
         else:
-            n, c = str.rsplit(context, '@', 1)
-            return re.compile(n), c
-    except TypeError:
-        return None, None
+            if '@' not in pattern:
+                pattern += '@'
+            if '#' not in pattern:
+                pattern += '#'
+            match = self.CHECKER.fullmatch(pattern)
+            context = match['context'] if match['context'] else None
+            name_pat = re.compile(match['name_pat']) if match['name_pat'] else None
+            base_klass = BaseConverter.SUB_CLASS[match['base_klass']] if match['base_klass'] else None
+            self._setup(context=context, name_pat=name_pat, base_klass=base_klass)
+            self._repr = pattern
 
+    def _setup(self, context: Context = None, name_pat: Optional[Pattern] = None, base_klass=None):
+        self.context = context
+        self.name_pat = name_pat
+        self.base_klass = base_klass if base_klass else BaseConverter
 
-# def in_force(g_result):
-#     cfs = [cf for cf in g_result.values()]
-#     pxs = [1 - cf.qx for cf in cfs]
-#     px = reduce(lambda x, y: x * y, pxs)  # type: torch.Tensor
-#     if_end = px.cumprod(1)
-#     if_begin = if_end / px[:, :1]
-#     g_result.lx = if_begin
-#     return g_result
-
-class CalculationContext:
-
-    def __init__(self, *args):
-        if len(args) == 1:
-            self.repr_str = args[0]
-    
     def __repr__(self):
-        return self.repr_str
+        return f"Controller({self._repr})"
+
+    def __str__(self):
+        return self._repr
+
+    def match_name(self, name: str):
+        try:
+            return self.name_pat.fullmatch(name)
+        except AttributeError:
+            return None
+
+    def match_base(self, base: BaseConverter)->bool:
+        return isinstance(base, self.base_klass) or (
+            isinstance(base, WaitingPeriod)
+            and (isinstance(base.during, self.base_klass) or
+                 isinstance(base.after, self.base_klass))
+        )
+
+    def fullmatch(self, clause: Clause)->Optional[Match]:
+        return self.match_name(clause.name) if self.match_base(clause.base) else None
+
+    def __call__(self, cashflow: CashFlow):
+        pass
 
 
 # ================================= Converters ================================
@@ -159,6 +192,8 @@ class BaseConverter(Module, ClauseReferable, ContractReferable):
     """
     BFT_INDICATOR = torch.tril(torch.ones(MAX_YR_LEN, MAX_YR_LEN, dtype=torch.double))
     BFT_IDX = 3  # policy term index
+
+    SUB_CLASS = {}
 
     def __init__(self, *, mth_converter: Optional[Union[int, Module]]=None):
         """
@@ -174,17 +209,20 @@ class BaseConverter(Module, ClauseReferable, ContractReferable):
         else:
             self.mth_converter = mth_converter
 
+    def __init_subclass__(cls, **kwargs):
+        cls.SUB_CLASS[cls.__name__] = cls
+
     @classmethod
     def bft_indicator(cls, mp_idx: Tensor):
         return cls.BFT_INDICATOR[mp_idx[:, cls.BFT_IDX].long() - 1, :]
 
-    def forward(self, mp_idx: Tensor, mp_val: Tensor, context: str, annual: bool=False):
+    def forward(self, mp_idx: Tensor, mp_val: Tensor, context: Context, annual: bool=False):
         if annual:
             return self.annual_result(mp_idx, mp_val, context)
         else:
             return self.mth_converter(self.annual_result(mp_idx, mp_val, context))
 
-    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: str):
+    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: Context):
         raise NotImplementedError
     
 
@@ -194,7 +232,7 @@ class BaseSelector(BaseConverter):
         super().__init__(mth_converter=mth_converter)
         self.idx = idx
 
-    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: str):
+    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: Context):
         return mp_val[:, self.idx].unsqueeze(1).expand(mp_val.shape[0], MAX_YR_LEN)
 
     def __repr__(self):
@@ -209,7 +247,7 @@ class PremPayed(BaseConverter):
         self.pmt_idx = pmt_idx
         self.prem_idx = prem_idx
 
-    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: str):
+    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: Context):
         prem = mp_val[:, self.prem_idx]
         pmt = mp_idx[:, self.pmt_idx].long()
         fac = self.FAC[pmt - 1, :]
@@ -237,7 +275,7 @@ class WaitingPeriod(BaseConverter):
         else:
             self.during = during
 
-    def forward(self, mp_idx: Tensor, mp_val: Tensor, context: str, annual: bool=False):
+    def forward(self, mp_idx: Tensor, mp_val: Tensor, context: Context, annual: bool=False):
         if annual:
             return self.annual_result(mp_idx, mp_val, context=context)
         else:
@@ -245,7 +283,7 @@ class WaitingPeriod(BaseConverter):
             dur = self.during(mp_idx, mp_val, annual=False)[:, :self.mth]
             return torch.cat((dur, aft), dim=1)
     
-    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: str):
+    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: Context):
         dur_ratio, aft_ratio = self.mth / 12, 1 - self.mth / 12
         aft = self.aft(mp_idx, mp_val, annual=True)
         dur = self.during(mp_idx, mp_val, annual=True)
@@ -262,7 +300,7 @@ class WaiveSelf(BaseConverter):
         self.prem_idx = prem_idx
         self.rate = make_parameter(rate)
 
-    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: str):
+    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: Context):
         prem = mp_val[:, self.prem_idx]
         pmt = mp_idx[:, self.pmt_idx].long()
         p_fac = self.FAC[pmt - 1, :]
@@ -277,7 +315,7 @@ class Waive(BaseConverter):
         self.sa_idx = sa_idx
         self.rate = make_parameter(rate)
 
-    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: str):
+    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: Context):
         sa = mp_val[:, self.sa_idx].reshape(-1, 1)
         bft = mp_idx[:, self.BFT_IDX].long()
         p_fac = WaiveSelf.FAC[bft, :]
@@ -291,7 +329,7 @@ class DescSA(BaseConverter):
         super().__init__(mth_converter=mth_converter)
         self.sa_idx = sa_idx
 
-    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: str):
+    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: Context):
         sa = mp_val[:, self.sa_idx].reshape(-1, 1)
         fac = WaiveSelf.FAC[mp_idx[:, self.BFT_IDX].long(), :]
         return fac * sa
@@ -299,7 +337,7 @@ class DescSA(BaseConverter):
 
 class OnesBase(BaseConverter):
 
-    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: str):
+    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: Context):
         return mp_val.new_ones((mp_val.shape[0], MAX_YR_LEN))
 
 
@@ -311,14 +349,14 @@ class AccountValue(BaseConverter):
         # see AccountValueCalculator.account_value for the use of key
         self.key = AccountValueCalculator.INITIAL_AV_KEY
 
-    def forward(self, mp_idx: Tensor, mp_val: Tensor, context: str, annual: bool=False):
+    def forward(self, mp_idx: Tensor, mp_val: Tensor, context: Context, annual: bool=False):
         assert not annual, "Account value does not support annual"
         try:
             return self.contract.AccountValueCalculator[self.key]
         except KeyError:
             return self.contract.AccountValueCalculator(mp_idx, mp_val, context=context, key=self.key)
 
-    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: str):
+    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: Context):
         raise RuntimeError("Account value does not support annual")
 
 
@@ -370,8 +408,11 @@ class Clause(Module, ContractReferable, ClauseLike):
     mth_converter: Callable
     meta_data: Dict[str, object]
 
-    def __init__(self, name, ratio_tables, base, t_offset, *, mth_converter=None,
-                 prob_tables=None, default_context='DEFAULT', virtual=False,
+    def __init__(self, name: str, ratio_tables: Union[Dict[str, Module], Module, float],
+                 base: Union[BaseConverter, int], t_offset: float,
+                 *, mth_converter: Union[Module, int]=None,
+                 prob_tables: Optional[Union[Dict[str, Probability], Probability]]=None,
+                 default_context: str='DEFAULT', virtual: bool=False,
                  contexts_exclude=()):
         """
 
@@ -383,9 +424,8 @@ class Clause(Module, ContractReferable, ClauseLike):
            constant multiplier.
         :type ratio_tables: Module or dict[str, Module] or float
         :param base: base of the clause, calculate the value with the ratio will multiply to.
-           input can be a  :class:`BaseConverter` or integer or `dict` of these.
+           input can be a  :class:`BaseConverter` or integer
            if the input is a integer, the base of the clause will be a :class:`BaseSelector`.
-           if the input is a dict, the keys should be contexts.
         :type base: int or BaseConverter
         :param float t_offset: time offset
         :param mth_converter: input can be both A module and a integer.
@@ -409,6 +449,8 @@ class Clause(Module, ContractReferable, ClauseLike):
 
         """
         super().__init__()
+        assert name is None or '#' not in name, \
+            "'#' can't be used in a clause name, it's a retained character used in Controller"
         self.name = name
         self.t_offset = t_offset
         self.virtual = virtual
@@ -470,7 +512,9 @@ class Clause(Module, ContractReferable, ClauseLike):
         self.ratio_tables = make_model_dict(ratio_tables, self.default_context)
         return self
 
-    def _setup_probabilities(self, prob_tables):
+    def _setup_probabilities(self, prob_tables: Optional[Union[Dict[str, Probability], Probability]]):
+        if prob_tables is None:
+            prob_tables = Inevitable()
         if not isiterable(prob_tables):
             prob_tables = {self.default_context: prob_tables}
         self.prob_tables = make_model_dict(prob_tables, self.default_context)
@@ -499,7 +543,7 @@ class Clause(Module, ContractReferable, ClauseLike):
             self.contexts_exclude = contexts_exclude
         return self
     
-    def calc_ratio(self, mp_idx, mp_val, context, annual)->Tensor:
+    def calc_ratio(self, mp_idx: Tensor, mp_val: Tensor, context: Context, annual: bool)->Tensor:
         """Calculate ratio of modelpoint under some context. If context can't be find in the 
         relative assumptions, then `default_context` of the Clause is used
 
@@ -512,7 +556,7 @@ class Clause(Module, ContractReferable, ClauseLike):
         r = self.ratio_tables[context](mp_idx, mp_val)
         return r if annual else repeat(r, 12)
 
-    def calc_prob(self, mp_idx, mp_val, context, annual)->Tensor:
+    def calc_prob(self, mp_idx: Tensor, mp_val: Tensor, context: Context, annual: bool)->Tensor:
         """Calculate probability of modelpoint under some context. If context can't be find in the 
         relative assumptions, then `default_context` of the Clause is used
 
@@ -524,7 +568,7 @@ class Clause(Module, ContractReferable, ClauseLike):
         """
         return self.prob_tables[context](mp_idx, mp_val, annual=annual)
     
-    def calc_base(self, mp_idx, mp_val, context, annual)->Tensor:
+    def calc_base(self, mp_idx: Tensor, mp_val: Tensor, context: Context, annual: bool)->Tensor:
         """Calculate base of modelpoint under some context. If context can't be find in the 
         relative assumptions, then `default_context` of the Clause is used
 
@@ -536,26 +580,28 @@ class Clause(Module, ContractReferable, ClauseLike):
         """
         return self.base(mp_idx, mp_val, context=context, annual=annual)
 
-    def forward(self, mp_idx: Tensor, mp_val: Tensor, context=None, annual: bool=False, *, calculator_results=None):
+    def forward(self, mp_idx: Tensor, mp_val: Tensor, controller: Union[Controller, Context]=Controller(),
+                annual: bool=False, *, calculator_results: Dict[str, Tensor]=None):
         """Cash flow calculation.
 
         :param Tensor mp_idx: index part of model point
         :param Tensor mp_val: value part of model point
-        :param str context: calculation context
+        :param Controller controller: calculation context and selector
         :param bool annual: annual or monthly result
         :param calculator_results:
         :type calculator_results: dict[str, Tensor]
         :return: cash flow detail
         :rtype: CashFlow
         """
-        pattern, context = parse_context(context)
+        # pattern, context = parse_context(controller.context)
+        context = controller.context if isinstance(controller, Controller) else controller
         p = self.calc_prob(mp_idx, mp_val, context, annual)
         qx = mp_val.new_zeros(()) if self.virtual else p
         if self.contexts_exclude(context):
             cf = mp_val.new_zeros(())
             r = mp_val.new_zeros(())
             b = mp_val.new_zeros(())
-        elif pattern is None or pattern.fullmatch(self.name):
+        elif controller is None or isinstance(controller, str) or controller.fullmatch(self):
             r = self.calc_ratio(mp_idx, mp_val, context, annual)
             b = self.calc_base(mp_idx, mp_val, context, annual)
             if annual:
@@ -586,7 +632,7 @@ class SideEffect(abc.ABC):
         """weak proxy of the dirty clause"""
 
     @abc.abstractmethod
-    def __call__(self, contract):
+    def __call__(self, contract: Contract):
         raise NotImplementedError
 
     @property
@@ -608,7 +654,7 @@ class ChangeAccountValue(SideEffect):
     def CalculatorClass(cls):
         return AccountValueCalculator
 
-    def _handle_waiting_priod(self, base: WaitingPeriod):
+    def _handle_waiting_period(self, base: WaitingPeriod):
         if isinstance(base.during, AccountValue):
             base.during.key = self.clause.name
         if isinstance(base.after, AccountValue):
@@ -621,9 +667,9 @@ class ChangeAccountValue(SideEffect):
         if isinstance(base, AccountValue):
             self._handle_account_value(base)
         elif isinstance(base, WaitingPeriod):
-            self._handle_waiting_priod(base)
+            self._handle_waiting_period(base)
 
-    def __call__(self, contract):
+    def __call__(self, contract: Contract):
         """
         :param Contract contract:
         """
@@ -669,7 +715,7 @@ class ClauseGroup(ModuleDict, ClauseLike):
 
     """
 
-    def __init__(self, *clause, name=None):
+    def __init__(self, *clause: Clause, name=None):
         """
         :param clause: clause like objects including :class:`Clause`,
             :class:`ParallelGroup`, :class:`SequentialGroup` etc
@@ -686,7 +732,7 @@ class ClauseGroup(ModuleDict, ClauseLike):
 
         :rtype: Iterable[Clause]
         """
-        return filter(lambda md: isinstance(md, Clause), self.children())
+        return filter(lambda md: isinstance(md, Clause), self.values())
 
     def named_clauses(self)->dict:
         """Dict of clauses contained directly in this group with name as key.
@@ -700,7 +746,7 @@ class ClauseGroup(ModuleDict, ClauseLike):
 
         :rtype: Iterable[ClauseGroup]
         """
-        return filter(lambda md: isinstance(md, ClauseGroup), self.children())
+        return filter(lambda md: isinstance(md, ClauseGroup), self.values())
 
     def named_clause_groups(self)->dict:
         """Dict of subgroup of clauses contained directly in this group with name as key.
@@ -709,7 +755,7 @@ class ClauseGroup(ModuleDict, ClauseLike):
         """
         return {name: md for name, md in self.named_children() if isinstance(md, ClauseGroup)}
 
-    def search_clause(self, name):
+    def search_clause(self, name)->Clause:
         """Get clause by name. It will search among all clauses contained in this group,
         including those contained by sub groups
 
@@ -728,8 +774,6 @@ class ClauseGroup(ModuleDict, ClauseLike):
 
     def all_clauses(self):
         """iterator of all clauses contained in this group.
-
-        :rtype: Iterable[Clause]
         """
         for cl in self.values():
             if isinstance(cl, Clause):
@@ -765,27 +809,27 @@ class ParallelGroup(ClauseGroup):
     """ A container define a list of "Clause" like objects with the order plays
     make no difference to calculation. The clauses within are independent.
     """
-    def __init__(self, *clause, name=None, t_offset=None):
+    def __init__(self, *clause: Clause, name: Optional[str]=None, t_offset: Optional[float]=None):
         super().__init__(*clause, name=name)
         self.t_offset = t_offset
         if self.t_offset is not None:
             for cl in self.clauses():
                 cl.t_offset = self.t_offset
 
-    def forward(self, mp_idx, mp_val, context=None, annual=False,
+    def forward(self, mp_idx, mp_val, controller: Controller=Controller(), annual=False,
                 *, calculator_results=None):
         """
 
         :param Tensor mp_idx: index part of model point
         :param Tensor mp_val: value part of model point
-        :param str context: calculation context
+        :param Controller controller: calculation context and selector
         :param bool annual: annual or monthly result
         :param calculator_results:
         :type calculator_results: dict[str, Tensor]
         :return: group result of cash flow detail
         :rtype: CashFlow
         """
-        raw_results = self.raw_result(mp_idx, mp_val, context, annual,
+        raw_results = self.raw_result(mp_idx, mp_val, controller, annual,
                                       calculator_results=calculator_results)
         qx = sum(r.qx for r in raw_results)
         return CashFlow(qx=qx, children=raw_results)
@@ -830,21 +874,22 @@ class SequentialGroup(ClauseGroup):
         else:
             self.copula = copula
 
-    def forward(self, mp_idx, mp_val, context=None, annual=False, *, calculator_results=None):
+    def forward(self, mp_idx, mp_val, controller: Controller=Controller(),
+                annual=False, *, calculator_results=None):
         """
 
         :param Tensor mp_idx: index part of model point
         :param Tensor mp_val: value part of model point
-        :param str context: calculation context
+        :param Controller controller: calculation context and selector
         :param bool annual: annual or monthly result
         :param calculator_results:
         :type calculator_results: dict[str, Tensor]
         :return: group result of cash flow detail
         :rtype: CashFlow
         """
-        sub_results = self.raw_result(mp_idx, mp_val, context, annual, calculator_results=calculator_results)
+        sub_results = self.raw_result(mp_idx, mp_val, controller, annual, calculator_results=calculator_results)
         qx_lst = [r.qx for r in sub_results]
-        pp_lst = self.copula(qx_lst, context)
+        pp_lst = self.copula(qx_lst, controller.context)
         raw_result = CashFlow(qx=1 - pp_lst[-1], children=sub_results)
         for r, px in zip(sub_results, pp_lst[:-1]):
             r.lx_mul_(px)  # update lx
@@ -914,19 +959,20 @@ class Contract(Module):
             cashflow.update_lx(in_force_before)
             return cashflow
 
-    def forward(self, mp_idx: Tensor, mp_val: Tensor, context: Optional[str]=None, annual: bool=False):
+    def forward(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller=Controller(), annual: bool=False):
         """
 
         :param Tensor mp_idx: index part of model point
         :param Tensor mp_val: value part of model point
-        :param str context: calculation context
+        :param Controller controller: calculation context and selector
         :param bool annual: annual or monthly result
         :rtype: CashFlow
         """
+        context = controller.context
         with ExitStack() as stack:
             calculator_results = dict(((calc.type(), stack.enter_context(calc(mp_idx, mp_val, context, annual)))
                                        for calc in self.calculators()))
-            rst = self.clauses(mp_idx, mp_val, context, annual, calculator_results=calculator_results)
+            rst = self.clauses(mp_idx, mp_val, controller, annual, calculator_results=calculator_results)
             rst.calculator_results.update(calculator_results)
         return self.in_force(rst)
 
@@ -992,11 +1038,11 @@ class AccountValueCalculator(Calculator):
         super().__init__(contract)
         self._av_store = {}
 
-    def related_side_effect_clauses(self):
+    def related_side_effect_clauses(self)->List[AClause]:
         return [x for x in self.contract.dirty_clauses() if isinstance(x, AClause)]
 
     @staticmethod
-    def is_av_based(clause: Clause):
+    def is_av_based(clause: Clause)->bool:
         base = clause.base
         if isinstance(base, AccountValue):
             return True
@@ -1039,7 +1085,7 @@ class AccountValueCalculator(Calculator):
         return [cl.calc_ratio(mp_idx, mp_val, context, annual).add(1.) for cl in self.crd]
 
     @staticmethod
-    def sum(tensor_lst):
+    def _sum(tensor_lst):
         try:
             return sum(tensor_lst)
         except TypeError:
@@ -1054,11 +1100,11 @@ class AccountValueCalculator(Calculator):
         if not after_credit_lst:
             after_credit = None
         else:
-            after_credit = time_slice(self.sum(after_credit_lst), dur_mth)
+            after_credit = time_slice(self._sum(after_credit_lst), dur_mth)
         if not before_credit_lst:
             before_credit = None
         else:
-            before_credit = time_slice(self.sum(before_credit_lst),  dur_mth)
+            before_credit = time_slice(self._sum(before_credit_lst),  dur_mth)
         rates = time_slice(reduce(mul, rates_lst) - 1, dur_mth)
         av = account_value(a0, rates, after_credit, before_credit)
         av = time_push(av, dur_mth)
@@ -1094,7 +1140,6 @@ class AccountValueCalculator(Calculator):
             self._av_store.clear()
             return rst
         else:
-            _, context = parse_context(context)
             self.account_value(mp_idx, mp_val, context, annual, memorize=True)
             return self
 

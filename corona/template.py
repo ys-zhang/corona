@@ -5,8 +5,8 @@ from weakref import proxy
 import contextlib
 
 import jinja2
-from corona import contract, mm, prob
-
+from corona import contract, prob
+from corona.core import mm
 
 __all__ = ['environment',
            'InModule',
