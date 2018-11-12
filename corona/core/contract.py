@@ -102,11 +102,12 @@ import re
 import random
 import weakref
 import abc
+import warnings
 from collections import OrderedDict
-from functools import reduce, lru_cache
+from functools import reduce
 from itertools import accumulate
 from operator import mul
-from typing import Optional, Iterable, Dict, Callable, List, Union, Pattern, AnyStr, Match
+from typing import Optional, Iterable, Dict, Callable, List, Union, Pattern, Match, Type, Any, overload
 from contextlib import ExitStack
 
 import numpy as np
@@ -116,94 +117,160 @@ from cytoolz import isiterable
 from torch.nn import Module
 
 from ..conf import MAX_YR_LEN
-from ..utils import CF2M, repeat, account_value, make_model_dict, Lambda, \
+from corona.core.utils import CF2M, repeat, account_value, make_model_dict, Lambda, \
     make_parameter, ClauseReferable, ContractReferable, ModuleDict, time_push, time_slice
 from .cashflow import CashFlow
 from .prob.prob import Inevitable, Probability
 
-Context = AnyStr
+Context = str  # type alias
+ContextExclude = Union[str, Iterable[str], Callable[[str], bool]]
 
 
 class Controller:
-    """ The instance of this Class controls calculation of :class:`Contract`. It provides information
+    r""" The instance of this Class controls calculation of :class:`Contract`. It provides information
     of what assumptions the contract will use throw :attr:`context`,
-    :attr:`name_pat` and :attr:`base_klass` act like filters to :class:`Clause` of the contract and
+    :attr:`name_pat` and :attr:`base_pat` act like filters to :class:`Clause` of the contract and
     :class:`BaseConverter` in clauses. name_pat filter clause by checking if it can match the name of
-    the clause, and base_klass filter BaseConverter using `isinstance`
+    the clause, and base_pat filter BaseConverter by checking if it can match the name of
+    the clause's base class.
+
+    At the end of the calculation of cashflow in a :class:`Contract` object, the controller is called
+    to calculate `lx` for the cashflow tree and prune the cashflow tree using `name_pat`.
+
+    We use a string with a special pattern to initiate a Controller, if you are familiar with RegExp 
+    the pattern is `(?P<context>\w+)?(@(?P<name_pat>[^ \t\n\r\f\v#]+))?(#(?P<base_klass>\w+))?`
+    The string is made of three parts: *context* part, *name_pat* part and *base_klass* part. all three parts
+    are optional.
+
+    - The *context* part can only by a word, e.g. a combination of [A-z0-9_], it can start with a number,
+    - The *name_pat* part is itself a regular expression but can't contain '#', and must follow after a '@'.
+    - The *base_pat* part is itself a regular expression and should match at least one name of sub classes
+       of :class:`BaseConverter`, and must follow after a '#'.
+
+    Example::
+
+        ’GAAP', r'GAAP@Death_\w+#PremPayed', r'@Death_\w+', '#PremPayed', ...
 
     """
-    CHECKER = re.compile(r"(?P<context>\w+)@(?P<name_pat>[^ \t\n\r\f\v#]+)?#(?P<base_klass>\w+)?")
+    CHECKER = re.compile(r"(?P<context>\w+)?(@(?P<name_pat>[^ \t\n\r\f\v#]+))?(#(?P<base_pat>!?[^ \t\n\r\f\v#]+))?")
+    DEFAULT_NAME_PAT = re.compile(r"\w+")
+    DEFAULT_BASE_PAT = re.compile(r"BaseConverter")
     context: Context
     name_pat: Optional[Pattern]
-    base_klass: type
+    base_pat: Optional[Pattern]
+    base_classes: List[Type[BaseConverter]]
+    _reverse_flag: bool
+    
+    @overload
+    def __init__(self, pattern: Optional[str]=None):
+        ...
+    
+    @overload
+    def __init__(self, context: Context, name_pat: Optional[str]=None, base_pat: Optional[str]=None):
+        ...
+    
+    def __init__(self, arg1=None, name_pat=None, base_pat=None):
+        if name_pat or base_pat:
+            self.context = arg1
+            self.name_pat = re.compile(name_pat) if name_pat else self.DEFAULT_NAME_PAT
+            self._reverse_flag = base_pat.startswith('!') if base_pat else False
+            self.base_pat = re.compile(base_pat.rstrip('!')) if base_pat else self.DEFAULT_BASE_PAT
 
-    def __init__(self, pattern: Optional[AnyStr]=None):
-        if pattern is None:
-            self._setup()
-            self._repr = None
         else:
-            if '@' not in pattern:
-                pattern += '@'
-            if '#' not in pattern:
-                pattern += '#'
-            match = self.CHECKER.fullmatch(pattern)
-            context = match['context'] if match['context'] else None
-            name_pat = re.compile(match['name_pat']) if match['name_pat'] else None
-            base_klass = BaseConverter.SUB_CLASS[match['base_klass']] if match['base_klass'] else None
-            self._setup(context=context, name_pat=name_pat, base_klass=base_klass)
-            self._repr = pattern
-
-    def _setup(self, context: Context = None, name_pat: Optional[Pattern] = None, base_klass=None):
-        self.context = context
-        self.name_pat = name_pat
-        self.base_klass = base_klass if base_klass else BaseConverter
-
+            if not arg1:
+                self.context = None
+                self.name_pat = self.base_pat = self.DEFAULT_NAME_PAT
+                self._reverse_flag = False
+            else:
+                match = self.CHECKER.fullmatch(arg1)
+                self.context = match['context'] if match['context'] else None
+                self.name_pat = re.compile(match['name_pat']) \
+                    if match['name_pat'] else self.DEFAULT_NAME_PAT
+                base_pat = match['base_pat']
+                self._reverse_flag = base_pat.startswith('!') if base_pat else False
+                self.base_pat = re.compile(base_pat.rstrip('!')) if base_pat else self.DEFAULT_BASE_PAT
+        self.base_classes = [klass for name, klass in BaseConverter.SUB_CLASS.items()
+                             if self.base_pat.fullmatch(name)]
+                
     def __repr__(self):
-        return f"Controller({self._repr})"
+        return f"Controller({self.context}, {self.name_pat}, {self.base_pat})"
 
     def __str__(self):
-        return self._repr
+        return self.__repr__()
 
-    def match_name(self, name: str):
-        try:
-            return self.name_pat.fullmatch(name)
-        except AttributeError:
-            return None
+    def match_name(self, name: str)->Match:
+        return self.name_pat.fullmatch(name)
 
     def match_base(self, base: BaseConverter)->bool:
-        return isinstance(base, self.base_klass) or (
-            isinstance(base, WaitingPeriod)
-            and (isinstance(base.during, self.base_klass) or
-                 isinstance(base.after, self.base_klass))
-        )
+        for klass in self.base_classes:
+            if isinstance(base, klass):
+                return not self._reverse_flag
+        else:
+            return self._reverse_flag
 
     def fullmatch(self, clause: Clause)->Optional[Match]:
         return self.match_name(clause.name) if self.match_base(clause.base) else None
 
-    def __call__(self, cashflow: CashFlow):
-        pass
+    @staticmethod
+    def in_force(cashflow: CashFlow)->CashFlow:
+        if not cashflow.children:
+            px = 1 - cashflow.qx
+            cashflow.lx = px.cumprod(1) / px[:, :1]
+            return cashflow
+        else:
+            px = reduce(lambda x, y: x * y,
+                        (1 - cf.qx for cf in cashflow.children))
+            in_force_before = px.cumprod(1) / px[:, :1]
+            cashflow.update_lx(in_force_before)
+            return cashflow
 
+    def prune(self, cashflow: CashFlow)->Optional[CashFlow]:
+        if not cashflow.children:
+            return cashflow if self.match_name(cashflow.meta_data['name']) else None
+        else:
+            children = list(filter(None, (self.prune(cf) for cf in cashflow.children)))
+            if children:
+                cashflow.children = children
+                return cashflow
+            else:
+                return None
+    
+    def __call__(self, cashflow: CashFlow)->Optional[CashFlow]:
+        return self.prune(self.in_force(cashflow))
+        
 
 # ================================= Converters ================================
 
-
 class BaseConverter(Module, ClauseReferable, ContractReferable):
     """Base of Converter Class, convert model point to base of benefits
+
+    `waiting_period_mask` should be called at the last step of return in `forward`, meaning
+    that the return value of `forward` method of all subclasses must be the the return value
+    from `waiting_period_mask` to make waiting period settings work.
     """
     BFT_INDICATOR = torch.tril(torch.ones(MAX_YR_LEN, MAX_YR_LEN, dtype=torch.double))
     BFT_IDX = 3  # policy term index
 
-    SUB_CLASS = {}
+    SUB_CLASS: Dict[str, Type[BaseConverter]] = {}
 
-    def __init__(self, *, mth_converter: Optional[Union[int, Module]]=None):
+    mth_converter: Module
+    waiting_period: Optional[int]
+    within_waiting_period: bool
+
+    def __init__(self, *, mth_converter: Optional[Union[int, Module]]=None,
+                 waiting_period: Optional[int]=None, within_waiting_period: bool=False):
         """
         :param mth_converter: Module used to convert an annual result to a monthly result, default None
            if mth_converter is None then it will be replace with the mth_converter of the Clause
               the BaseConverter lives in.
            if mth_converter is Integer then :class:`~util.CF2M` is used
            You can use :class:`~util.Lambda` to wrap a callable
+        :param waiting_period: number of months
+        :param within_waiting_period: whether the base is non zero within the waiting period
         """
         super().__init__()
+        self.waiting_period = waiting_period
+        self.within_waiting_period = within_waiting_period
         if isinstance(mth_converter, int) or mth_converter is None:
             self.mth_converter = CF2M(only_at_month=mth_converter)
         else:
@@ -212,51 +279,106 @@ class BaseConverter(Module, ClauseReferable, ContractReferable):
     def __init_subclass__(cls, **kwargs):
         cls.SUB_CLASS[cls.__name__] = cls
 
+    def waiting_period_mask(self, ts: Tensor, annual: bool)->Tensor:
+        if self.waiting_period is None:
+            return ts
+        elif self.within_waiting_period:
+            if annual:
+                return torch.cat((ts[:, :1], torch.zeros_like(ts[:, 1:])), 1)
+            else:
+                return torch.cat((ts[:, :self.waiting_period],
+                                  torch.zeros_like(ts[:, self.waiting_period:])), 1)
+        else:
+            if annual:
+                return torch.cat((torch.zeros_like(ts[:, :1]), ts[:, 1:]), 1)
+            else:
+                return torch.cat((torch.zeros_like(ts[:, :self.waiting_period]),
+                                  ts[:, self.waiting_period:]), 1)
+
     @classmethod
     def bft_indicator(cls, mp_idx: Tensor):
-        return cls.BFT_INDICATOR[mp_idx[:, cls.BFT_IDX].long() - 1, :]
+        return cls.BFT_INDICATOR[mp_idx[:, cls.BFT_IDX] - 1, :]
 
-    def forward(self, mp_idx: Tensor, mp_val: Tensor, context: Context, annual: bool=False):
+    def forward(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller, annual: bool=False)->Tensor:
+        if not controller.match_base(self):
+            return mp_val.new_zeros(())
         if annual:
-            return self.annual_result(mp_idx, mp_val, context)
+            rst = self.annual_result(mp_idx, mp_val, controller)
         else:
-            return self.mth_converter(self.annual_result(mp_idx, mp_val, context))
+            rst = self.mth_converter(self.annual_result(mp_idx, mp_val, controller))
+        return self.waiting_period_mask(rst, annual)
 
-    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: Context):
+    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller)->Tensor:
         raise NotImplementedError
     
 
 class BaseSelector(BaseConverter):
 
-    def __init__(self, idx, *, mth_converter: Optional[Union[int, Module]]=None):
-        super().__init__(mth_converter=mth_converter)
+    def __init__(self, idx, *, mth_converter: Optional[Union[int, Module]]=None,
+                 waiting_period: Optional[int] = None, within_waiting_period: bool = False):
+        super().__init__(mth_converter=mth_converter, within_waiting_period=within_waiting_period,
+                         waiting_period=waiting_period)
         self.idx = idx
 
-    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: Context):
+    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller)->Tensor:
         return mp_val[:, self.idx].unsqueeze(1).expand(mp_val.shape[0], MAX_YR_LEN)
 
     def __repr__(self):
         return str(self.idx)
 
 
-class PremPayed(BaseConverter):
+class SumAssured(BaseSelector):
+
+    def __init__(self, sa_idx: int=1, *, mth_converter: Optional[Union[int, Module]] = None,
+                 waiting_period: Optional[int] = None, within_waiting_period: bool = False):
+        super().__init__(idx=sa_idx, mth_converter=mth_converter, waiting_period=waiting_period,
+                         within_waiting_period=within_waiting_period)
+
+
+class PremRelatedBase(BaseConverter):
+    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller)->Tensor:
+        raise NotImplementedError
+
+
+class PremPayed(PremRelatedBase):
     FAC = torch.tril(torch.ones(MAX_YR_LEN, MAX_YR_LEN, dtype=torch.double)).cumsum(1)
 
-    def __init__(self, pmt_idx=2, prem_idx=0, *, mth_converter: Optional[Union[int, Module]]=None):
-        super().__init__(mth_converter=mth_converter)
+    def __init__(self, pmt_idx=2, prem_idx=0, *, mth_converter: Optional[Union[int, Module]]=None,
+                 waiting_period: Optional[int] = None, within_waiting_period: bool = False):
+        super().__init__(mth_converter=mth_converter, waiting_period=waiting_period,
+                         within_waiting_period=within_waiting_period)
         self.pmt_idx = pmt_idx
         self.prem_idx = prem_idx
 
-    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: Context):
+    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller):
         prem = mp_val[:, self.prem_idx]
-        pmt = mp_idx[:, self.pmt_idx].long()
+        pmt = mp_idx[:, self.pmt_idx]
         fac = self.FAC[pmt - 1, :]
         idc = self.bft_indicator(mp_idx)
         return fac * prem.reshape(-1, 1) * idc
 
 
+class PremIncome(PremRelatedBase):
+    """ annual payed premium income """
+    
+    def __init__(self, pmt_idx=2, prem_idx=0, *, mth_converter: Optional[Union[int, Module]]=0,
+                 waiting_period: Optional[int] = None, within_waiting_period: bool = True):
+        super().__init__(mth_converter=mth_converter, waiting_period=waiting_period,
+                         within_waiting_period=within_waiting_period)
+        self.pmt_idx = pmt_idx
+        self.prem_idx = prem_idx
+
+    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller):
+        prem = mp_val[:, self.prem_idx]
+        pmt = mp_idx[:, self.pmt_idx]
+        idc = self.BFT_INDICATOR[pmt - 1, :]
+        return idc * prem.reshape(-1, 1)
+
+
 class WaitingPeriod(BaseConverter):
     """ Represents Waiting Period for liabilities.
+
+    Deprecated, Use `WaitingPeriodCouple` instead.
 
     Construction:
         :parameter int mth: length of the waiting period in number of months.
@@ -266,6 +388,7 @@ class WaitingPeriod(BaseConverter):
 
     def __init__(self, mth: int, after: BaseConverter, during: BaseConverter=None,
                  *, mth_converter: Optional[Union[int, Module]] = None):
+        warnings.warn(f'This class is deprecated, use {WaitingPeriodCouple} instead', DeprecationWarning)
         super().__init__(mth_converter=mth_converter)
         assert isinstance(mth, int) and 1 <= mth <= 12
         self.mth = mth
@@ -275,18 +398,18 @@ class WaitingPeriod(BaseConverter):
         else:
             self.during = during
 
-    def forward(self, mp_idx: Tensor, mp_val: Tensor, context: Context, annual: bool=False):
+    def forward(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller, annual: bool=False):
         if annual:
-            return self.annual_result(mp_idx, mp_val, context=context)
+            return self.annual_result(mp_idx, mp_val, controller=controller)
         else:
-            aft = self.after(mp_idx, mp_val, annual=False)[:, self.mth:]
-            dur = self.during(mp_idx, mp_val, annual=False)[:, :self.mth]
+            aft = self.after(mp_idx, mp_val, controller=controller, annual=False)[:, self.mth:]
+            dur = self.during(mp_idx, mp_val, controller=controller, annual=False)[:, :self.mth]
             return torch.cat((dur, aft), dim=1)
     
-    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: Context):
+    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller):
         dur_ratio, aft_ratio = self.mth / 12, 1 - self.mth / 12
-        aft = self.aft(mp_idx, mp_val, annual=True)
-        dur = self.during(mp_idx, mp_val, annual=True)
+        aft = self.after(mp_idx, mp_val, controller=controller, annual=True)
+        dur = self.during(mp_idx, mp_val, controller=controller, annual=True)
         return torch.cat((dur[:, :1] * dur_ratio + aft[:, :1] * aft_ratio, aft[:, 1:]), dim=1)
 
 
@@ -294,13 +417,15 @@ class WaiveSelf(BaseConverter):
     FAC = torch.from_numpy(np.tril(np.ones((MAX_YR_LEN, MAX_YR_LEN), dtype=np.double), -1)
                            .T[::-1, :].cumsum(1)[:, ::-1].copy())
 
-    def __init__(self, pmt_idx=2, prem_idx=0, *, rate, mth_converter: Optional[Union[int, Module]]=None):
-        super().__init__(mth_converter=mth_converter)
+    def __init__(self, pmt_idx=2, prem_idx=0, *, rate, mth_converter: Optional[Union[int, Module]]=None,
+                 waiting_period: Optional[int] = None, within_waiting_period: bool = False):
+        super().__init__(mth_converter=mth_converter, waiting_period=waiting_period,
+                         within_waiting_period=within_waiting_period)
         self.pmt_idx = pmt_idx
         self.prem_idx = prem_idx
         self.rate = make_parameter(rate)
 
-    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: Context):
+    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller):
         prem = mp_val[:, self.prem_idx]
         pmt = mp_idx[:, self.pmt_idx].long()
         p_fac = self.FAC[pmt - 1, :]
@@ -310,12 +435,14 @@ class WaiveSelf(BaseConverter):
 
 class Waive(BaseConverter):
 
-    def __init__(self, sa_idx=1, *, rate, mth_converter: Optional[Union[int, Module]]=None):
-        super().__init__(mth_converter=mth_converter)
+    def __init__(self, sa_idx=1, *, rate, mth_converter: Optional[Union[int, Module]]=None,
+                 waiting_period: Optional[int] = None, within_waiting_period: bool = False):
+        super().__init__(mth_converter=mth_converter, waiting_period=waiting_period,
+                         within_waiting_period=within_waiting_period)
         self.sa_idx = sa_idx
         self.rate = make_parameter(rate)
 
-    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: Context):
+    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller):
         sa = mp_val[:, self.sa_idx].reshape(-1, 1)
         bft = mp_idx[:, self.BFT_IDX].long()
         p_fac = WaiveSelf.FAC[bft, :]
@@ -325,11 +452,13 @@ class Waive(BaseConverter):
 
 class DescSA(BaseConverter):
     
-    def __init__(self, sa_idx=1, *, mth_converter: Optional[Union[int, Module]]=None):
-        super().__init__(mth_converter=mth_converter)
+    def __init__(self, sa_idx=1, *, mth_converter: Optional[Union[int, Module]]=None,
+                 waiting_period: Optional[int] = None, within_waiting_period: bool = False):
+        super().__init__(mth_converter=mth_converter, waiting_period=waiting_period,
+                         within_waiting_period=within_waiting_period)
         self.sa_idx = sa_idx
 
-    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: Context):
+    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller):
         sa = mp_val[:, self.sa_idx].reshape(-1, 1)
         fac = WaiveSelf.FAC[mp_idx[:, self.BFT_IDX].long(), :]
         return fac * sa
@@ -337,26 +466,31 @@ class DescSA(BaseConverter):
 
 class OnesBase(BaseConverter):
 
-    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: Context):
+    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller):
         return mp_val.new_ones((mp_val.shape[0], MAX_YR_LEN))
 
 
 class AccountValue(BaseConverter):
 
-    def __init__(self, *, mth_converter: Optional[Union[int, Module]]=None):
-        super().__init__(mth_converter=mth_converter)
+    def __init__(self, *, mth_converter: Optional[Union[int, Module]]=None,
+                 waiting_period: Optional[int] = None, within_waiting_period: bool = False):
+        super().__init__(mth_converter=mth_converter, waiting_period=waiting_period,
+                         within_waiting_period=within_waiting_period)
         # this value is set as the name of the previous AClause by side effect: ChangeAccountValue
         # see AccountValueCalculator.account_value for the use of key
         self.key = AccountValueCalculator.INITIAL_AV_KEY
 
-    def forward(self, mp_idx: Tensor, mp_val: Tensor, context: Context, annual: bool=False):
+    def forward(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller, annual: bool=False):
         assert not annual, "Account value does not support annual"
+        if not controller.match_base(self):
+            return mp_val.new_zeros(())
         try:
-            return self.contract.AccountValueCalculator[self.key]
+            rst = self.contract.AccountValueCalculator[self.key]
         except KeyError:
-            return self.contract.AccountValueCalculator(mp_idx, mp_val, context=context, key=self.key)
+            rst = self.contract.AccountValueCalculator(mp_idx, mp_val, controller=controller, key=self.key)
+        return self.waiting_period_mask(rst, annual)
 
-    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, context: Context):
+    def annual_result(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller):
         raise RuntimeError("Account value does not support annual")
 
 
@@ -406,14 +540,14 @@ class Clause(Module, ContractReferable, ClauseLike):
     ratio_table: ModuleDict
     prob_tables: ModuleDict
     mth_converter: Callable
-    meta_data: Dict[str, object]
+    meta_data: Dict[str, Any]
 
-    def __init__(self, name: str, ratio_tables: Union[Dict[str, Module], Module, float],
+    def __init__(self, name: str, ratio_tables: Union[Dict[str, Module], ModuleDict, Module, float],
                  base: Union[BaseConverter, int], t_offset: float,
                  *, mth_converter: Union[Module, int]=None,
-                 prob_tables: Optional[Union[Dict[str, Probability], Probability]]=None,
+                 prob_tables: Optional[Union[Dict[str, Probability], ModuleDict, Probability]]=None,
                  default_context: str='DEFAULT', virtual: bool=False,
-                 contexts_exclude=()):
+                 contexts_exclude: ContextExclude=()):
         """
 
         :param str name: name of the clause
@@ -503,107 +637,107 @@ class Clause(Module, ContractReferable, ClauseLike):
         return self
 
     def _setup_ratio_tables(self, ratio_tables):
-        if not isiterable(ratio_tables):
-            if isinstance(ratio_tables, float) or isinstance(ratio_tables, int):
-                _r = float(ratio_tables)
-                ratio_tables = Lambda(lambda mp_idx, _: _.new([_r]).expand(_.shape[0], MAX_YR_LEN),
-                                      repre=ratio_tables)
-            ratio_tables = {self.default_context: ratio_tables}
-        self.ratio_tables = make_model_dict(ratio_tables, self.default_context)
+        if isinstance(ratio_tables, ModuleDict):
+            self.ratio_tables = ratio_tables
+        else:
+            if not isiterable(ratio_tables):
+                if isinstance(ratio_tables, float) or isinstance(ratio_tables, int):
+                    _r = float(ratio_tables)
+                    ratio_tables = Lambda(lambda mp_idx, _: _.new([_r]).expand(_.shape[0], MAX_YR_LEN),
+                                          repre=ratio_tables)
+                ratio_tables = {self.default_context: ratio_tables}
+            self.ratio_tables = make_model_dict(ratio_tables, self.default_context)
         return self
 
-    def _setup_probabilities(self, prob_tables: Optional[Union[Dict[str, Probability], Probability]]):
+    def _setup_probabilities(self, prob_tables: Optional[Union[Dict[str, Probability], Probability, ModuleDict]]):
         if prob_tables is None:
-            prob_tables = Inevitable()
-        if not isiterable(prob_tables):
-            prob_tables = {self.default_context: prob_tables}
-        self.prob_tables = make_model_dict(prob_tables, self.default_context)
+            self.prob_tables = Inevitable()
+        elif isinstance(prob_tables, ModuleDict):
+            self.prob_tables = prob_tables
+        else:
+            if not isiterable(prob_tables):
+                prob_tables = {self.default_context: prob_tables}
+            self.prob_tables = make_model_dict(prob_tables, self.default_context)
         return self
     
     def _setup_default_context(self, default_context, contexts_exclude):
         self.default_context = default_context
         if isinstance(contexts_exclude, str):
             self._context_exclude_repr = contexts_exclude
-            if contexts_exclude.startswith('~'):
-                _context_exclude = set((x.strip()
-                                        for x in contexts_exclude[1:].split(',')))
-                self.contexts_exclude = lambda x: x not in _context_exclude
+            pat = re.compile(contexts_exclude.rstrip('!'))
+            if contexts_exclude.startswith('!'):
+                self.contexts_exclude = lambda x: pat.fullmatch(x) is None
             else:
-                _context_exclude = set((x.strip()
-                                        for x in contexts_exclude.split(',')))
-                self.contexts_exclude = lambda x: x in _context_exclude
+                self.contexts_exclude = lambda x: pat.fullmatch(x)
         elif isiterable(contexts_exclude):
             _context_exclude = set(contexts_exclude)
-            self._context_exclude_repr = ','.join(
-                (str(x) for x in contexts_exclude))
+            self._context_exclude_repr = ','.join(str(x) for x in contexts_exclude)
             self.contexts_exclude = lambda x: x in _context_exclude
         else:
             assert callable(contexts_exclude)
             self._context_exclude_repr = repr(contexts_exclude)
             self.contexts_exclude = contexts_exclude
         return self
-    
-    def calc_ratio(self, mp_idx: Tensor, mp_val: Tensor, context: Context, annual: bool)->Tensor:
+
+    def calc_ratio(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller, annual: bool)->Tensor:
         """Calculate ratio of modelpoint under some context. If context can't be find in the 
         relative assumptions, then `default_context` of the Clause is used
 
         :param Tensor mp_idx: index part of model point
         :param Tensor mp_val: value part of model point
-        :param str context: calculation context
+        :param Controller controller: calculation context
         :param bool annual: annual or monthly result
         :return: ratio
         """
-        r = self.ratio_tables[context](mp_idx, mp_val)
+        r = self.ratio_tables[controller.context](mp_idx, mp_val)
         return r if annual else repeat(r, 12)
 
-    def calc_prob(self, mp_idx: Tensor, mp_val: Tensor, context: Context, annual: bool)->Tensor:
+    def calc_prob(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller, annual: bool)->Tensor:
         """Calculate probability of modelpoint under some context. If context can't be find in the 
         relative assumptions, then `default_context` of the Clause is used
 
         :param Tensor mp_idx: index part of model point
         :param Tensor mp_val: value part of model point
-        :param str context: calculation context
+        :param Controller controller: calculation context
         :param bool annual: annual or monthly result
         :return: probability
         """
-        return self.prob_tables[context](mp_idx, mp_val, annual=annual)
-    
-    def calc_base(self, mp_idx: Tensor, mp_val: Tensor, context: Context, annual: bool)->Tensor:
+        return self.prob_tables[controller.context](mp_idx, mp_val, annual=annual)
+
+    def calc_base(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller, annual: bool)->Tensor:
         """Calculate base of modelpoint under some context. If context can't be find in the 
         relative assumptions, then `default_context` of the Clause is used
 
         :param Tensor mp_idx: index part of model point
         :param Tensor mp_val: value part of model point
-        :param str context: calculation context
+        :param Controller controller: calculation context
         :param bool annual: annual or monthly result
         :return: base
         """
-        return self.base(mp_idx, mp_val, context=context, annual=annual)
+        return self.base(mp_idx, mp_val, controller=controller, annual=annual)
 
-    def forward(self, mp_idx: Tensor, mp_val: Tensor, controller: Union[Controller, Context]=Controller(),
+    def forward(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller=Controller(),
                 annual: bool=False, *, calculator_results: Dict[str, Tensor]=None):
         """Cash flow calculation.
 
         :param Tensor mp_idx: index part of model point
         :param Tensor mp_val: value part of model point
-        :param Controller controller: calculation context and selector
+        :param Controller controller: control how calculation carry on
         :param bool annual: annual or monthly result
-        :param calculator_results:
+        :param calculator_results: result of :class:`Calculator` bind to the contract which contains this clause
         :type calculator_results: dict[str, Tensor]
-        :return: cash flow detail
+        :return: cash flow
         :rtype: CashFlow
         """
-        # pattern, context = parse_context(controller.context)
-        context = controller.context if isinstance(controller, Controller) else controller
-        p = self.calc_prob(mp_idx, mp_val, context, annual)
+        p = self.calc_prob(mp_idx, mp_val, controller, annual)
         qx = mp_val.new_zeros(()) if self.virtual else p
-        if self.contexts_exclude(context):
+        if self.contexts_exclude(controller.context):
             cf = mp_val.new_zeros(())
             r = mp_val.new_zeros(())
             b = mp_val.new_zeros(())
-        elif controller is None or isinstance(controller, str) or controller.fullmatch(self):
-            r = self.calc_ratio(mp_idx, mp_val, context, annual)
-            b = self.calc_base(mp_idx, mp_val, context, annual)
+        elif controller.fullmatch(self):
+            r = self.calc_ratio(mp_idx, mp_val, controller, annual)
+            b = self.calc_base(mp_idx, mp_val, controller, annual)
             if annual:
                 cf = r * b
             else:
@@ -614,7 +748,7 @@ class Clause(Module, ContractReferable, ClauseLike):
             b = mp_val.new_zeros(())
 
         meta_data = self.meta_data.copy()
-        meta_data.update(context=context, annual=annual)
+        meta_data.update(context=controller.context, annual=annual)
         return CashFlow(cf, p, qx, mp_val.new_ones(()), b, r, (mp_idx, mp_val), meta_data)
 
     def extra_repr(self):
@@ -835,6 +969,47 @@ class ParallelGroup(ClauseGroup):
         return CashFlow(qx=qx, children=raw_results)
 
 
+class WaitingPeriodCouple(ParallelGroup):
+    """ Represents A clause with a waiting period, it is a parallel group consists of
+    TWO clauses, one is used outside the waiting period which is an integer between 1 and 12,
+     the other is used inside the waiting period.
+
+    **The clause parameter of __init__ method will be changed inplace**,
+    you should be careful if input of the clause parameter will be used somewhere else later.
+    """
+    waiting_period: int
+
+    def __init__(self, name: str, clause: Clause, waiting_period: int, clause_inside: Optional[Clause]=None,
+                 t_offset: Optional[float]=None):
+        assert 1 <= waiting_period <= 12
+        self.waiting_period = waiting_period
+        clause.base.waiting_period = waiting_period
+        clause.base.within_waiting_period = False
+        if clause_inside is None:
+            clause_inside = Clause(f'{clause.name}_WAITING_PERIOD', ratio_tables=1.,
+                                   base=PremIncome(waiting_period=waiting_period, within_waiting_period=True),
+                                   t_offset=clause.t_offset, mth_converter=clause.mth_converter,
+                                   prob_tables=clause.prob_tables,
+                                   virtual=True, default_context=clause.default_context,
+                                   contexts_exclude=clause.contexts_exclude)
+        else:
+            assert clause_inside.virtual
+        self._clause_inside_name = self._get_dict_name(clause_inside)
+        self._clause_outside_name = self._get_dict_name(clause)
+        super().__init__(clause, clause_inside, name=name, t_offset=t_offset)
+
+    @property
+    def clause_inside(self)->Clause:
+        return self[self._clause_inside_name]
+
+    @property
+    def clause_outside(self)->Clause:
+        return self[self._clause_outside_name]
+
+    def extra_repr(self):
+        return f'$WAITING_PERIOD$: {self.waiting_period}'
+
+
 class SequentialGroup(ClauseGroup):
     r""" A container define a list of "Clause" like objects with the order plays
     a critical role in calculation. 
@@ -890,10 +1065,10 @@ class SequentialGroup(ClauseGroup):
         sub_results = self.raw_result(mp_idx, mp_val, controller, annual, calculator_results=calculator_results)
         qx_lst = [r.qx for r in sub_results]
         pp_lst = self.copula(qx_lst, controller.context)
-        raw_result = CashFlow(qx=1 - pp_lst[-1], children=sub_results)
+        rst = CashFlow(qx=1 - pp_lst[-1], children=sub_results)
         for r, px in zip(sub_results, pp_lst[:-1]):
             r.lx_mul_(px)  # update lx
-        return raw_result
+        return rst
 
 
 class Contract(Module):
@@ -947,18 +1122,6 @@ class Contract(Module):
         for c in self._calculators:
             yield c
 
-    @staticmethod
-    def in_force(cashflow: CashFlow)->CashFlow:
-        if not cashflow.children:
-            px = 1 - cashflow.qx
-            cashflow.lx = px.cumprod(1) / px[:, :1]
-            return cashflow
-        else:
-            px = reduce(lambda x, y: x * y, (1 - cf.qx for cf in cashflow.children))
-            in_force_before = px.cumprod(1) / px[:, :1]
-            cashflow.update_lx(in_force_before)
-            return cashflow
-
     def forward(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller=Controller(), annual: bool=False):
         """
 
@@ -968,13 +1131,12 @@ class Contract(Module):
         :param bool annual: annual or monthly result
         :rtype: CashFlow
         """
-        context = controller.context
         with ExitStack() as stack:
-            calculator_results = dict(((calc.type(), stack.enter_context(calc(mp_idx, mp_val, context, annual)))
-                                       for calc in self.calculators()))
+            calculator_results = {calc.type(): stack.enter_context(calc(mp_idx, mp_val, controller, annual))
+                                  for calc in self.calculators()}
             rst = self.clauses(mp_idx, mp_val, controller, annual, calculator_results=calculator_results)
             rst.calculator_results.update(calculator_results)
-        return self.in_force(rst)
+        return controller(rst)
 
     def extra_repr(self):
         return "$NAME$: {}".format(self.name)
@@ -1016,7 +1178,8 @@ class Calculator(abc.ABC):
     def related_side_effect_clauses(self)->Iterable[DirtyClause]:
         raise NotImplementedError
 
-    def __call__(self, mp_idx, mp_val, context, annual, *args):
+    def __call__(self, mp_idx: Tensor, mp_val: Tensor,
+                 controller: Controller, annual: bool, **kwargs):
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -1030,9 +1193,9 @@ class AccountValueCalculator(Calculator):
 
     INITIAL_AV_KEY = "___HiMyFriend___" + str(random.random())
 
-    bf_crd: Optional[Iterable[Clause]]
-    aft_crd: Optional[Iterable[Clause]]
-    crd: Optional[Iterable[AClause]]
+    bf_crd: Iterable[Clause]
+    aft_crd: Iterable[Clause]
+    crd: Iterable[AClause]
 
     def __init__(self, contract: Contract):
         super().__init__(contract)
@@ -1075,14 +1238,14 @@ class AccountValueCalculator(Calculator):
         self.crd = cls_crd
         """ clauses act like credit """
 
-    def before_credit(self, mp_idx: Tensor, mp_val: Tensor, context: str, annual: bool=False)->List[Tensor]:
-        return [cl(mp_idx, mp_val, context, annual=annual).cf for cl in self.bf_crd]
+    def before_credit(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller, annual: bool=False)->List[Tensor]:
+        return [cl(mp_idx, mp_val, controller, annual=annual).cf for cl in self.bf_crd]
 
-    def after_credit(self, mp_idx: Tensor, mp_val: Tensor, context: str, annual: bool=False)->List[Tensor]:
-        return [cl(mp_idx, mp_val, context, annual=annual).cf for cl in self.aft_crd]
+    def after_credit(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller, annual: bool=False)->List[Tensor]:
+        return [cl(mp_idx, mp_val, controller, annual=annual).cf for cl in self.aft_crd]
 
-    def rates(self, mp_idx: Tensor, mp_val: Tensor, context: str, annual: bool=False)->List[Tensor]:
-        return [cl.calc_ratio(mp_idx, mp_val, context, annual).add(1.) for cl in self.crd]
+    def rates(self, mp_idx: Tensor, mp_val: Tensor, controller: Controller, annual: bool=False)->List[Tensor]:
+        return [cl.calc_ratio(mp_idx, mp_val, controller, annual).add(1.) for cl in self.crd]
 
     @staticmethod
     def _sum(tensor_lst):
@@ -1091,11 +1254,16 @@ class AccountValueCalculator(Calculator):
         except TypeError:
             return None
 
-    def account_value(self, mp_idx, mp_val, context, annual=False, *, memorize=False):
+    def account_value(self, mp_idx: Tensor, mp_val: Tensor, context: Context,
+                      annual: bool=False, *, memorize: bool=False):
+        # calculation of account value should not be restricted by controller
+        controller = Controller()
+        controller.context = context
+
         a0 = mp_val[:, 2]  # the initial account value
-        rates_lst = self.rates(mp_idx, mp_val, context, annual)  # type: torch.Tensor
-        after_credit_lst = self.after_credit(mp_idx, mp_val, context, annual)
-        before_credit_lst = self.before_credit(mp_idx, mp_val, context, annual)
+        rates_lst = self.rates(mp_idx, mp_val, controller, annual)  # type: torch.Tensor
+        after_credit_lst = self.after_credit(mp_idx, mp_val, controller, annual)
+        before_credit_lst = self.before_credit(mp_idx, mp_val, controller, annual)
         dur_mth = mp_idx[:, 4]
         if not after_credit_lst:
             after_credit = None
@@ -1132,15 +1300,14 @@ class AccountValueCalculator(Calculator):
     def __getitem__(self, item):
         return self._av_store[item]
 
-    def __call__(self, mp_idx, mp_val, context, annual=False, *, key=None):
-        # _, context = parse_context(context)
-        # self.account_value(mp_idx, mp_val, context, annual, memorize=True)
+    def __call__(self, mp_idx: Tensor, mp_val: Tensor,
+                 controller: Controller, annual: bool, key=None, **kwargs):
         if key is not None:
             rst = self._av_store[key]
             self._av_store.clear()
             return rst
         else:
-            self.account_value(mp_idx, mp_val, context, annual, memorize=True)
+            self.account_value(mp_idx, mp_val, controller.context, annual, memorize=True)
             return self
 
     def __enter__(self):

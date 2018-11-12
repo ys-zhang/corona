@@ -2,7 +2,7 @@ from typing import Optional
 import torch
 from torch import nn
 
-from corona.utils import make_parameter
+from corona.core.utils import make_parameter
 
 
 class LinearSensitivity(nn.Module):

@@ -4,7 +4,7 @@ import torch
 from torch import Tensor
 from torch.nn import Module, Parameter
 from ...conf import MAX_YR_LEN
-from ...utils import repeat, time_slice, make_parameter
+from corona.core.utils import repeat, time_slice, make_parameter
 from ..mm import LinearSensitivity
 
 __all__ = ['Probability', 'Inevitable', 'SelectionFactor']

@@ -61,18 +61,19 @@ Example
     lapse_table2017 = ProphetTable.get_table(lapse_table_name + '2017')
 
 """
+from __future__ import annotations
 import enum
+import re
 import os
 import warnings
 import sqlite3
-from typing import Dict
+from typing import Dict, List, Type, Union
 
 import pyparsing as pp
 import pandas as pd
 import numpy as np
-from cytoolz import get
 
-__all__ = ['ProphetTable', 'read_generic_table', 'read_parameter_table',
+__all__ = ['ProphetTable', 'ProphetTableType', 'read_generic_table', 'read_parameter_table',
            'read_probability_table', 'read_modelpoint_table',
            'read_table_of_table', 'read_assumption_tables', 'prlife_read']
 
@@ -130,6 +131,7 @@ class ProphetTable:
 
     """
 
+    # ============================== Table Parsers ==========================================
     # Generic Table Parser the parsing result has follow keys:
     #     - tableCaption: the caption and description for the table
     #     - colNum: how many columns does the table have, index not include
@@ -145,6 +147,7 @@ class ProphetTable:
         pp.Suppress(Integer) + (pp.delimitedList(Number).setResultsName('rows', True) | Number) +
         pp.Suppress(Integer)
     ).setResultsName('table')
+    # =======================================================================================
 
     PROPHET_NUMPY_VAR_MAP = {
         'I': np.int,
@@ -160,18 +163,23 @@ class ProphetTable:
     MP_PMT_COL = 'PREM_PAYBL_Y'
     MP_MTH_COL = 'DURATIONIF_M'
 
-    _ALL_TABLES_ = {}  # type: Dict[ProphetTable]
+    _ALL_TABLES_ = {}  # type: Dict[str, ProphetTable]
 
     _BANDED_ATTRIBUTE = {'loc', 'iloc'}
+
+    # ==============================  instance attributes  =================================
+    dataframe: pd.DataFrame
+    tablename: str
+    tabletype: ProphetTableType
+    # ======================================================================================
 
     def __init__(self, tablename, tabletype, dataframe, *, cache=True):
         self.tablename = tablename
         self.tabletype = tabletype
-        self.dataframe: pd.DataFrame = dataframe
+        self.dataframe = dataframe
         if cache and self.tabletype != ProphetTableType.ModelPoint:
             if self.tablename in self._ALL_TABLES_:
-                warnings.warn("tablename :{} all ready exists".format(self.tablename),
-                              RuntimeWarning)
+                warnings.warn("tablename :{} already exists".format(self.tablename), RuntimeWarning)
             self._ALL_TABLES_[self.tablename] = self
 
     def __getattr__(self, name):
@@ -209,8 +217,12 @@ class ProphetTable:
         cls._ALL_TABLES_ = {}
 
     @classmethod
-    def translate_var_type(cls, prophet_var_types: list):
-        return get(prophet_var_types, cls.PROPHET_NUMPY_VAR_MAP)
+    def has_cached(cls, tablename: str)->bool:
+        return tablename in cls._ALL_TABLES_
+
+    @classmethod
+    def translate_var_type(cls, prophet_var_types: List[str])->List[Type[Union[float, int]]]:
+        return [cls.PROPHET_NUMPY_VAR_MAP[tk] for tk in prophet_var_types]
 
     @staticmethod
     def guess_tablename(file)->str:
@@ -225,11 +237,11 @@ class ProphetTable:
                + repr(self.dataframe)
 
     @classmethod
-    def get_table(cls, tablename):
+    def get_table(cls, tablename: str)->ProphetTable:
         return cls._ALL_TABLES_[tablename]
 
     @classmethod
-    def read_generic_table(cls, file, tabletype=0, tablename=None):
+    def read_generic_table(cls, file, tabletype=ProphetTableType.GenericTable, tablename=None):
         """ Read file as *Prophet Generic Table*
 
         :param Union[str, File] file: path to the file
@@ -336,6 +348,7 @@ class ProphetTable:
                 s = "".join(lines)
                 p_rst = cls.ProbabilityTableParser.parseString(s)
                 table_ = cls.parse_result2table(p_rst['rows'])
+                # noinspection PyUnresolvedReferences
                 return np.array(table_, dtype=np.double)
 
         m_table = read_array(m_file)
@@ -393,7 +406,7 @@ class ProphetTable:
         if isinstance(kx, ProphetTable):
             kx = kx.values.T
 
-        from corona.core.prob import Probability
+        from corona.core import Probability
         if klass is None:
             klass = Probability
         else:
@@ -449,10 +462,24 @@ class ProphetTable:
     @classmethod
     def cache_to_sqlite(cls, path):
         with sqlite3.connect(path) as conn:
+            pd.DataFrame([(tbl.tablename, tbl.tabletype.name, tbl.tabletype.value,
+                           ",".join(tbl.dataframe.index.names) if tbl.dataframe.index.names[0] else None)
+                          for tbl in cls._ALL_TABLES_.values()],
+                         columns=['name', 'type_name', 'type_code', 'index_names']).to_sql("_table_info", conn)
             for tablename, table in cls._ALL_TABLES_.items():
                 table.dataframe.to_sql(tablename, conn)
-            pd.DataFrame([(tbl.tablename, tbl.tabletype.name) for tbl in cls._ALL_TABLES_.values()],
-                         columns=['name', 'type']).to_sql("table_info", conn)
+
+    @classmethod
+    def load_sqlite(cls, path, clear_cache=False):
+        if clear_cache:
+            cls.clear_cache()
+        with sqlite3.connect(path) as conn:
+            info = pd.read_sql('select * from _table_info;', conn)
+            for tablename, type_code, index_names in zip(info['name'].tolist(), info['type_code'].tolist(),
+                                                         info['index_names'].tolist()):
+                ProphetTable(tablename, ProphetTableType(type_code),
+                             pd.read_sql(f"select * from {tablename};", conn,
+                                         index_col=index_names.split(",") if index_names else None))
 
 
 read_generic_table = ProphetTable.read_generic_table
@@ -494,9 +521,8 @@ def read_assumption_tables(folder, *, tot_pattern=None,
         ignored
     :param str exclude_pattern: regular expression of table name that should be ignored
     :param bool clear_cache: if True cached tables will be cleared before reading, default False
+    :param Tuple[str, str] gender_suffix: used to identify the gender of a prophet mort table
     """
-    import re
-    import os
     get_name = ProphetTable.guess_tablename
 
     if clear_cache:

@@ -2,9 +2,9 @@
 credit of account value
 
 """
-from ..utils import make_parameter
+from corona.core.utils import make_parameter
 from ..conf import MAX_YR_LEN
-from ..table import RatioTableBase
+from corona.core.table import RatioTableBase
 
 
 class CreditRateBase(RatioTableBase):

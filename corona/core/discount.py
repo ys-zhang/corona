@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from torch import Tensor
 from torch.nn import Module, Parameter
-from ..utils import sens
+from corona.core.utils import sens
 from ..conf import MAX_YR_LEN
 
 

@@ -8,7 +8,10 @@ import torch
 from torch.nn import Module, Parameter
 from torch import Tensor
 import numpy as np
-from .utils import ClauseReferable, ContractReferable, pad
+from corona.core.utils import ClauseReferable, ContractReferable, pad
+import warnings
+
+warnings.warn("Use corona.core.lookup instead", DeprecationWarning)
 
 
 class Table(Module):
@@ -70,7 +73,7 @@ class Table(Module):
         """
         table = pad(self.table, self.n_col, self.pad_value, self.pad_mode)
         if self._need_lookup:
-            return torch.index_select(table, 0, index.long())
+            return table[index, :]
         else:
             return table.expand(index.nelement(), self.n_col)
 
@@ -85,7 +88,7 @@ class LookupTable(Table):
     .. math::
 
          \text{out}_{i, j} =
-            \text{table}_{\text{index_table}[\text{lookup}], \;  j} 
+            \text{table}_{\text{index_table}[\text{lookup}_i], \;  j}
 
     All LookupTable Tables are inherited from this class.
 
@@ -173,7 +176,7 @@ class LookupTable(Table):
 
 
 class RatioTableBase(Module, ClauseReferable, ContractReferable):
-    """ Base Clase of RatioTable
+    """ Base Class of RatioTable
     """
     def forward(self, *inputs):
         raise NotImplementedError

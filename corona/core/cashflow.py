@@ -2,7 +2,7 @@
 Classes of results returned by contract related Modules
 """
 from __future__ import annotations
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Generator
 import dataclasses as dc
 
 import torch
@@ -42,6 +42,14 @@ class CashFlow:
     def copy(self)->CashFlow:
         return CashFlow(self.cf, self.p, self.qx, self.lx, self.base, self.ratio,
                         self.mp, self.meta_data.copy(), self.children.copy())
+
+    def leaves(self)->Generator[CashFlow]:
+        """ iterate over lea """
+        if not self.children:
+            yield self
+        else:
+            for cf in self.children:
+                yield from cf.leaves()
 
     # -------------------------------  probability related properties -------------------------------------
     @property
@@ -109,7 +117,10 @@ class CashFlow:
             rst.cf = self.cf * forward_rate.add(1).pow(1 - self.t_offset)
             rst.meta_data.update(t_offset=1.)
         return rst
-    
+
+    def actuarial_value(self, forward_rate: Tensor)->Tensor:
+        return self.icf / forward_rate.add(1.).pow(self.t_offset).cumprod()
+
     # -------------------------------  serializing methods --------------------------------------
     def to_sql(self, conn, batch_id):
         pass

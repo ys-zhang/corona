@@ -3,9 +3,8 @@
  multiple purposes like valuate, profit testing, BP etc.
 
 """
-__version__ = '0.1'
+__version__ = '0.1.2'
 
-from corona.core import contract
-from corona.core import prob
-from corona.core import discount
-from corona.core import cashflow
+from corona.core import *
+
+
