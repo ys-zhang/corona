@@ -86,7 +86,8 @@ Integer = pp.Combine(pp.Optional('-') + pp.Word(pp.nums))\
     .setParseAction(lambda toks: int(toks[0]))
 Float = pp.Combine(pp.Word(pp.nums) + '.' + pp.Word(pp.nums))\
     .setParseAction(lambda toks: float(toks[0]))
-Number = Float | Integer
+_Number = Float | Integer
+Number = pp.Combine(_Number + pp.Word('eE') + Integer).setParseAction(lambda toks: float(toks[0])) | _Number
 
 TableValue = Number | pp.Word(pp.alphanums + '_') | pp.QuotedString('"')
 TableStartAt = Integer.setResultsName('tblStartAt')
@@ -354,7 +355,13 @@ class ProphetTable:
         m_table = read_array(m_file)
         if f_file is not None:
             f_table = read_array(f_file)
-            table = np.hstack((m_table, f_table))
+            try:
+                table = np.hstack((m_table, f_table))
+            except ValueError as e:
+                print(m_table)
+                print(f_table)
+                breakpoint()
+                raise e
         else:
             table = m_table
         if table.shape[1] == 1:
@@ -479,7 +486,7 @@ class ProphetTable:
                                                          info['index_names'].tolist()):
                 ProphetTable(tablename, ProphetTableType(type_code),
                              pd.read_sql(f"select * from {tablename};", conn,
-                                         index_col=index_names.split(",") if index_names else None))
+                                         index_col=index_names.split(",") if index_names else 'index'))
 
 
 read_generic_table = ProphetTable.read_generic_table
@@ -610,7 +617,11 @@ def read_assumption_tables(folder, *, tot_pattern=None,
                 rst['gen'].append(read_generic_table(f))
 
     for fs in single_gender_prob.values():
-        rst['prob'].append(read_probability_table(**fs))
+        try:
+            rst['prob'].append(read_probability_table(**fs))
+        except Exception as e:
+            print(fs)
+            raise e
 
     return rst
 
@@ -631,3 +642,11 @@ def prlife_read(folder, clear_cache=True):
                                   exclude_folder='CROSS_LASTVAL',
                                   exclude_pattern='PRICING_AGE_TBL',
                                   clear_cache=clear_cache)
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description='Prophet to python processes...')
+    parser.add_argument(
+
+    )
